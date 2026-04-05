@@ -9,7 +9,11 @@
 package io.element.android.features.messages.impl.messagecomposer
 
 import android.net.Uri
+import androidx.lifecycle.Lifecycle
+import io.element.android.libraries.matrix.api.stickers.StickerPackItem
+import io.element.android.libraries.matrix.api.stickers.StickerPackManifest
 import io.element.android.libraries.textcomposer.mentions.ResolvedSuggestion
+import io.element.android.libraries.textcomposer.model.MessageComposerRecorderMode
 import io.element.android.libraries.textcomposer.model.MessageComposerMode
 import io.element.android.libraries.textcomposer.model.Suggestion
 
@@ -17,9 +21,14 @@ sealed interface MessageComposerEvent {
     data object ToggleFullScreenState : MessageComposerEvent
     data object SendMessage : MessageComposerEvent
     data class SendUri(val uri: Uri) : MessageComposerEvent
+    data class SendSticker(val pack: StickerPackManifest, val sticker: StickerPackItem) : MessageComposerEvent
     data object CloseSpecialMode : MessageComposerEvent
     data class SetMode(val composerMode: MessageComposerMode) : MessageComposerEvent
     data object AddAttachment : MessageComposerEvent
+    data object ShowStickerPicker : MessageComposerEvent
+    data object DismissStickerPicker : MessageComposerEvent
+    data class ImportStickerPackArchive(val uri: Uri) : MessageComposerEvent
+    data class RemoveStickerPack(val packId: String) : MessageComposerEvent
     data object DismissAttachmentMenu : MessageComposerEvent
     sealed interface PickAttachmentSource : MessageComposerEvent {
         data object FromGallery : PickAttachmentSource
@@ -37,4 +46,13 @@ sealed interface MessageComposerEvent {
     data class InsertSuggestion(val resolvedSuggestion: ResolvedSuggestion) : MessageComposerEvent
     data object SaveDraft : MessageComposerEvent
     data object ClearSlashError : MessageComposerEvent
+    data class SetRecorderMode(val mode: MessageComposerRecorderMode) : MessageComposerEvent
+    data object StartVideoNoteRecording : MessageComposerEvent
+    data object VideoNotePermissionsGranted : MessageComposerEvent
+    data object LockVideoNoteRecording : MessageComposerEvent
+    data object FinishVideoNoteRecording : MessageComposerEvent
+    data object CancelVideoNoteRecording : MessageComposerEvent
+    data class VideoNoteRecordingCompleted(val uri: Uri) : MessageComposerEvent
+    data class VideoNoteRecordingFailed(val throwable: Throwable) : MessageComposerEvent
+    data class LifecycleEvent(val event: Lifecycle.Event) : MessageComposerEvent
 }

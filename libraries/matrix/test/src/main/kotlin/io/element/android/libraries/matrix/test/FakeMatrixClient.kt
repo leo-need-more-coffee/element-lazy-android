@@ -134,6 +134,11 @@ class FakeMatrixClient(
     private var setDisplayNameResult: Result<Unit> = Result.success(Unit)
     private var uploadAvatarResult: Result<Unit> = Result.success(Unit)
     private var removeAvatarResult: Result<Unit> = Result.success(Unit)
+    private val accountDataResults = mutableMapOf<String, Result<String?>>()
+    var setAccountDataLambda: (String, String) -> Result<Unit> = { eventType, content ->
+        accountDataResults[eventType] = Result.success(content)
+        Result.success(Unit)
+    }
     var joinRoomLambda: (RoomId) -> Result<RoomInfo?> = {
         Result.success(null)
     }
@@ -220,6 +225,14 @@ class FakeMatrixClient(
         accountManagementUrlResult(action)
     }
 
+    override suspend fun getAccountData(eventType: String): Result<String?> = simulateLongTask {
+        accountDataResults[eventType] ?: Result.success(null)
+    }
+
+    override suspend fun setAccountData(eventType: String, content: String): Result<Unit> = simulateLongTask {
+        setAccountDataLambda(eventType, content)
+    }
+
     override suspend fun uploadMedia(
         mimeType: String,
         data: ByteArray,
@@ -284,6 +297,14 @@ class FakeMatrixClient(
 
     fun givenUploadMediaResult(result: Result<String>) {
         uploadMediaResult = result
+    }
+
+    fun givenAccountData(eventType: String, content: String?) {
+        accountDataResults[eventType] = Result.success(content)
+    }
+
+    fun givenGetAccountDataResult(eventType: String, result: Result<String?>) {
+        accountDataResults[eventType] = result
     }
 
     fun givenSetDisplayNameResult(result: Result<Unit>) {

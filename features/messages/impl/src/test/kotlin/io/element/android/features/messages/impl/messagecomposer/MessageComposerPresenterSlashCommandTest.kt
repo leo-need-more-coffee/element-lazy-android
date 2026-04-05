@@ -10,6 +10,7 @@
 package io.element.android.features.messages.impl.messagecomposer
 
 import android.net.Uri
+import androidx.test.core.app.ApplicationProvider
 import app.cash.turbine.ReceiveTurbine
 import com.google.common.truth.Truth.assertThat
 import io.element.android.features.location.api.LocationService
@@ -19,6 +20,7 @@ import io.element.android.features.messages.impl.MessagesNavigator
 import io.element.android.features.messages.impl.draft.ComposerDraftService
 import io.element.android.features.messages.impl.draft.FakeComposerDraftService
 import io.element.android.features.messages.impl.messagecomposer.suggestions.SuggestionsProcessor
+import io.element.android.features.messages.impl.stickers.StickerPackService
 import io.element.android.features.messages.impl.timeline.TimelineController
 import io.element.android.features.messages.impl.utils.FakeMentionSpanFormatter
 import io.element.android.features.messages.impl.utils.FakeTextPillificationHelper
@@ -273,6 +275,18 @@ class MessageComposerPresenterSlashCommandTest {
         mediaOptimizationConfigProvider: FakeMediaOptimizationConfigProvider = FakeMediaOptimizationConfigProvider(),
         isInThread: Boolean = false,
         slashCommandService: SlashCommandService = FakeSlashCommandService(),
+        stickerPackService: StickerPackService = object : StickerPackService {
+            override suspend fun getPacks(): Result<List<io.element.android.libraries.matrix.api.stickers.StickerPackManifest>> =
+                Result.success(emptyList())
+            override suspend fun savePacks(packs: List<io.element.android.libraries.matrix.api.stickers.StickerPackManifest>): Result<Unit> =
+                Result.success(Unit)
+            override suspend fun addPack(pack: io.element.android.libraries.matrix.api.stickers.StickerPackManifest): Result<Unit> =
+                Result.success(Unit)
+            override suspend fun importPack(sourceUrl: String): Result<io.element.android.libraries.matrix.api.stickers.StickerPackManifest> =
+                Result.failure<io.element.android.libraries.matrix.api.stickers.StickerPackManifest>(IllegalStateException("No sticker packs in test"))
+            override suspend fun importPackArchive(uri: android.net.Uri): Result<io.element.android.libraries.matrix.api.stickers.StickerPackManifest> =
+                Result.failure<io.element.android.libraries.matrix.api.stickers.StickerPackManifest>(IllegalStateException("No sticker packs in test"))
+        },
     ) = MessageComposerPresenter(
         navigator = navigator,
         sessionCoroutineScope = this,
@@ -297,6 +311,7 @@ class MessageComposerPresenterSlashCommandTest {
         snackbarDispatcher = snackbarDispatcher,
         analyticsService = analyticsService,
         locationService = locationService,
+        context = ApplicationProvider.getApplicationContext(),
         messageComposerContext = DefaultMessageComposerContext(),
         richTextEditorStateFactory = TestRichTextEditorStateFactory(),
         roomAliasSuggestionsDataSource = FakeRoomAliasSuggestionsDataSource(),
@@ -311,6 +326,7 @@ class MessageComposerPresenterSlashCommandTest {
         mediaOptimizationConfigProvider = mediaOptimizationConfigProvider,
         notificationConversationService = notificationConversationService,
         slashCommandService = slashCommandService,
+        stickerPackService = stickerPackService,
     ).apply {
         isTesting = true
         showTextFormatting = isRichTextEditorEnabled

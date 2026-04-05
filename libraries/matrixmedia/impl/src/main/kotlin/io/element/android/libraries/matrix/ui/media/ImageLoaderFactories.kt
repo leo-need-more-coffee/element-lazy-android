@@ -13,6 +13,7 @@ import android.os.Build
 import coil3.ImageLoader
 import coil3.gif.AnimatedImageDecoder
 import coil3.gif.GifDecoder
+import coil3.video.VideoFrameDecoder
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
@@ -56,6 +57,7 @@ class DefaultImageLoaderFactory(
                 } else {
                     add(GifDecoder.Factory())
                 }
+                add(VideoFrameDecoder.Factory())
                 add(AvatarDataKeyer())
                 add(MediaRequestDataKeyer())
                 add(AvatarDataFetcherFactory(matrixMediaLoader))

@@ -45,9 +45,11 @@ import io.element.android.features.messages.impl.timeline.model.TimelineItem
 import io.element.android.features.messages.impl.timeline.model.TimelineItemThreadInfo
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEventContentWithAttachment
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemPollContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemStickerContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemStateContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemTextBasedContent
 import io.element.android.features.messages.impl.timeline.protection.TimelineProtectionState
+import io.element.android.features.messages.impl.stickers.StickerPackService
 import io.element.android.features.messages.impl.voicemessages.composer.DefaultVoiceMessageComposerPresenter
 import io.element.android.features.roomcall.api.RoomCallState
 import io.element.android.features.roommembermoderation.api.RoomMemberModerationEvents
@@ -121,6 +123,7 @@ class MessagesPresenter(
     private val featureFlagService: FeatureFlagService,
     private val addRecentEmoji: AddRecentEmoji,
     private val markAsFullyRead: MarkAsFullyRead,
+    private val stickerPackService: StickerPackService,
     @SessionCoroutineScope private val sessionCoroutineScope: CoroutineScope,
 ) : Presenter<MessagesState> {
     @AssistedFactory
@@ -339,6 +342,7 @@ class MessagesPresenter(
             TimelineItemAction.CopyText -> handleCopyContents(targetEvent)
             TimelineItemAction.CopyCaption -> handleCopyCaption(targetEvent)
             TimelineItemAction.CopyLink -> handleCopyLink(targetEvent)
+            TimelineItemAction.AddStickerPack -> handleAddStickerPack(targetEvent)
             TimelineItemAction.Redact -> handleActionRedact(targetEvent)
             TimelineItemAction.Edit,
             TimelineItemAction.EditPoll -> handleActionEdit(targetEvent, composerState, enableTextFormatting)
@@ -367,6 +371,18 @@ class MessagesPresenter(
             TimelineItemAction.Unpin -> handleUnpinAction(targetEvent)
             TimelineItemAction.ViewInTimeline -> Unit
         }
+    }
+
+    private suspend fun handleAddStickerPack(targetEvent: TimelineItem.Event) {
+        val stickerPackSourceUrl = (targetEvent.content as? TimelineItemStickerContent)?.stickerPackSourceUrl
+            ?: return snackbarDispatcher.post(SnackbarMessage(CommonStrings.common_error))
+        stickerPackService.importPack(stickerPackSourceUrl)
+            .onSuccess {
+                snackbarDispatcher.post(SnackbarMessage(R.string.screen_message_sticker_pack_added))
+            }
+            .onFailure {
+                snackbarDispatcher.post(SnackbarMessage(CommonStrings.common_error))
+            }
     }
 
     private suspend fun handleRemoveCaption(targetEvent: TimelineItem.Event) {

@@ -8,38 +8,69 @@
 
 package io.element.android.features.messages.impl.timeline.components.event
 
+import android.graphics.Bitmap
+import android.media.MediaMetadataRetriever
 import android.text.SpannedString
+import android.graphics.Outline
+import android.graphics.Matrix
+import android.view.View
+import android.view.ViewGroup.LayoutParams.MATCH_PARENT
+import android.view.ViewOutlineProvider
+import android.view.TextureView
+import android.widget.FrameLayout
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.hideFromAccessibility
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.common.Player.STATE_BUFFERING
+import androidx.media3.common.Player.STATE_ENDED
+import androidx.media3.common.VideoSize
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
 import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
 import io.element.android.compound.theme.ElementTheme
@@ -52,13 +83,17 @@ import io.element.android.features.messages.impl.timeline.model.TimelineItemGrou
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVideoContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVideoContentProvider
 import io.element.android.features.messages.impl.timeline.model.event.aTimelineItemVideoContent
+import io.element.android.features.messages.impl.timeline.components.LocalTimelineItemSendState
+import io.element.android.features.messages.impl.timeline.videonotes.VideoNotePlaybackEvent
+import io.element.android.features.messages.impl.timeline.videonotes.VideoNotePlaybackState
 import io.element.android.features.messages.impl.timeline.protection.ProtectedView
+import io.element.android.libraries.matrix.api.timeline.item.event.LocalEventSendState
 import io.element.android.features.messages.impl.timeline.protection.coerceRatioWhenHidingContent
 import io.element.android.libraries.designsystem.components.blurhash.blurHashBackground
 import io.element.android.libraries.designsystem.modifiers.onKeyboardContextMenuAction
-import io.element.android.libraries.designsystem.modifiers.roundedBackground
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
+import io.element.android.libraries.matrix.api.media.MediaSource
 import io.element.android.libraries.matrix.ui.media.MAX_THUMBNAIL_HEIGHT
 import io.element.android.libraries.matrix.ui.media.MAX_THUMBNAIL_WIDTH
 import io.element.android.libraries.matrix.ui.media.MediaRequestData
@@ -67,10 +102,12 @@ import io.element.android.libraries.ui.strings.CommonStrings
 import io.element.android.libraries.ui.utils.time.isTalkbackActive
 import io.element.android.wysiwyg.compose.EditorStyledText
 import io.element.android.wysiwyg.link.Link
+import timber.log.Timber
 
 @Composable
 fun TimelineItemVideoView(
     content: TimelineItemVideoContent,
+    playbackState: VideoNotePlaybackState,
     hideMediaContent: Boolean,
     onContentClick: (() -> Unit)?,
     onLongClick: (() -> Unit)?,
@@ -83,14 +120,57 @@ fun TimelineItemVideoView(
     val isTalkbackActive = isTalkbackActive()
     val a11yLabel = stringResource(CommonStrings.common_video)
     val description = content.caption?.let { "$a11yLabel: $it" } ?: a11yLabel
+    LaunchedEffect(content, playbackState.isActive, playbackState.isLoading, playbackState.localMediaUri != null) {
+        Timber.tag("VideoNotePlayback").d(
+            "view.state contentIdentity=%d isVideoNote=%s isActive=%s isLoading=%s hasLocalUri=%s",
+            System.identityHashCode(content),
+            content.isVideoNote,
+            playbackState.isActive,
+            playbackState.isLoading,
+            playbackState.localMediaUri != null,
+        )
+    }
     Column(modifier = modifier) {
-        val containerModifier = if (content.showCaption) {
+        val containerModifier = if (content.isVideoNote) {
+            Modifier
+                .padding(top = 6.dp)
+                .then(if (playbackState.isActive) Modifier.fillMaxWidth() else Modifier.width(160.dp))
+                .clip(CircleShape)
+        } else if (content.showCaption) {
             Modifier
                 .padding(top = 6.dp)
                 .clip(RoundedCornerShape(6.dp))
         } else {
             Modifier
         }
+        // Extracted once outside conditionals (Compose rules: no remember inside if/else)
+        val localFrameBitmap = rememberLocalVideoFrame(
+            localMediaUri = playbackState.localMediaUri,
+            thumbnailSource = content.thumbnailSource,
+        )
+        var isLoaded by remember { mutableStateOf(false) }
+        // true while the local echo is still sending/uploading to the server
+        val isUploading = content.isVideoNote && LocalTimelineItemSendState.current is LocalEventSendState.Sending
+        val clickModifier = if (!isTalkbackActive) {
+            Modifier
+                .combinedClickable(
+                    onClick = {
+                        if (content.isVideoNote) {
+                            // Disallow playback while the note is still uploading
+                            if (!isUploading) {
+                                playbackState.eventSink(VideoNotePlaybackEvent.TogglePlayback)
+                            }
+                        } else {
+                            onContentClick?.invoke()
+                        }
+                    },
+                    onLongClick = onLongClick,
+                )
+                .onKeyboardContextMenuAction(onLongClick)
+        } else {
+            Modifier
+        }
+
         TimelineItemAspectRatioBox(
             modifier = containerModifier.blurHashBackground(content.blurHash, alpha = 0.9f),
             aspectRatio = coerceRatioWhenHidingContent(content.aspectRatio, hideMediaContent),
@@ -100,46 +180,54 @@ fun TimelineItemVideoView(
                 hideContent = hideMediaContent,
                 onShowClick = onShowContentClick,
             ) {
-                var isLoaded by remember { mutableStateOf(false) }
-                AsyncImage(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .then(if (isLoaded) Modifier.background(Color.White) else Modifier)
-                        .then(
-                            if (!isTalkbackActive && onContentClick != null) {
-                                Modifier
-                                    .combinedClickable(
-                                        onClick = onContentClick,
-                                        onLongClick = onLongClick,
-                                    )
-                                    .onKeyboardContextMenuAction(onLongClick)
-                            } else {
-                                Modifier
-                            }
-                        ),
-                    model = MediaRequestData(
-                        source = content.thumbnailSource,
-                        kind = MediaRequestData.Kind.Thumbnail(
-                            width = content.thumbnailWidth?.toLong() ?: MAX_THUMBNAIL_WIDTH,
-                            height = content.thumbnailHeight?.toLong() ?: MAX_THUMBNAIL_HEIGHT,
-                        )
-                    ),
-                    contentScale = ContentScale.Crop,
-                    alignment = Alignment.Center,
-                    contentDescription = description,
-                    onState = { isLoaded = it is AsyncImagePainter.State.Success },
-                )
-
-                Box(
-                    modifier = Modifier.roundedBackground(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Image(
-                        imageVector = CompoundIcons.PlaySolid(),
-                        contentDescription = stringResource(id = CommonStrings.a11y_play),
-                        colorFilter = ColorFilter.tint(Color.White),
-                        modifier = Modifier.semantics { hideFromAccessibility() }
+                if (content.isVideoNote && playbackState.isActive && playbackState.localMediaUri != null) {
+                    VideoNotePlayer(
+                        mediaUri = playbackState.localMediaUri,
+                        thumbnailSource = content.thumbnailSource,
+                        thumbnailWidth = content.thumbnailWidth,
+                        thumbnailHeight = content.thumbnailHeight,
+                        contentDescription = description,
+                        onLongClick = onLongClick ?: {},
+                        onPlaybackEnded = { playbackState.eventSink(VideoNotePlaybackEvent.PlaybackEnded) },
                     )
+                } else {
+                    if (localFrameBitmap != null) {
+                        // Local echo: no server thumbnail yet — show frame extracted from local file
+                        Image(
+                            bitmap = localFrameBitmap,
+                            contentDescription = description,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize().then(clickModifier),
+                        )
+                    } else {
+                        AsyncImage(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .then(if (isLoaded) Modifier.background(Color.White) else Modifier)
+                                .then(clickModifier),
+                            model = MediaRequestData(
+                                source = content.thumbnailSource,
+                                kind = MediaRequestData.Kind.Thumbnail(
+                                    width = content.thumbnailWidth?.toLong() ?: MAX_THUMBNAIL_WIDTH,
+                                    height = content.thumbnailHeight?.toLong() ?: MAX_THUMBNAIL_HEIGHT,
+                                )
+                            ),
+                            contentScale = ContentScale.Crop,
+                            alignment = Alignment.Center,
+                            contentDescription = description,
+                            onState = { isLoaded = it is AsyncImagePainter.State.Success },
+                        )
+                    }
+
+                    when {
+                        isUploading -> CircularVideoLoadingIndicator()
+                        content.isVideoNote && playbackState.isLoading -> {
+                            CircularVideoLoadingIndicator()
+                        }
+                        else -> {
+                            VideoNotePlayButton(content.isVideoNote)
+                        }
+                    }
                 }
             }
         }
@@ -177,6 +265,7 @@ fun TimelineItemVideoView(
 internal fun TimelineItemVideoViewPreview(@PreviewParameter(TimelineItemVideoContentProvider::class) content: TimelineItemVideoContent) = ElementPreview {
     TimelineItemVideoView(
         content = content,
+        playbackState = VideoNotePlaybackState(localMediaUri = null, isLoading = false, isActive = false, eventSink = {}),
         hideMediaContent = false,
         onShowContentClick = {},
         onContentClick = {},
@@ -192,6 +281,7 @@ internal fun TimelineItemVideoViewPreview(@PreviewParameter(TimelineItemVideoCon
 internal fun TimelineItemVideoViewHideMediaContentPreview() = ElementPreview {
     TimelineItemVideoView(
         content = aTimelineItemVideoContent(),
+        playbackState = VideoNotePlaybackState(localMediaUri = null, isLoading = false, isActive = false, eventSink = {}),
         hideMediaContent = true,
         onShowContentClick = {},
         onContentClick = {},
@@ -200,6 +290,271 @@ internal fun TimelineItemVideoViewHideMediaContentPreview() = ElementPreview {
         onLinkLongClick = {},
         onContentLayoutChange = {},
     )
+}
+
+@androidx.annotation.OptIn(UnstableApi::class)
+@Composable
+private fun VideoNotePlayer(
+    mediaUri: android.net.Uri,
+    thumbnailSource: MediaSource?,
+    thumbnailWidth: Int?,
+    thumbnailHeight: Int?,
+    contentDescription: String,
+    onLongClick: () -> Unit,
+    onPlaybackEnded: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val mediaUriHash = remember(mediaUri) { mediaUri.toString().hashCode() }
+    val exoPlayer = remember(mediaUri) {
+        ExoPlayer.Builder(context).build().apply {
+            volume = 1f
+            videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING
+            setMediaItem(MediaItem.fromUri(mediaUri))
+            prepare()
+        }
+    }
+    // Direct reference so we can apply crop transform immediately on onVideoSizeChanged
+    // without waiting for a recomposition cycle.
+    val textureViewRef = remember(mediaUri) { arrayOfNulls<TextureView>(1) }
+    var isPlaying by remember(mediaUri) { mutableStateOf(false) }
+    // Start as true: ExoPlayer enters BUFFERING immediately, avoids a one-frame play-button flash
+    var isBuffering by remember(mediaUri) { mutableStateOf(true) }
+    var videoSize by remember(mediaUri) { mutableStateOf<VideoSize?>(null) }
+    var isCropApplied by remember(mediaUri) { mutableStateOf(false) }
+    var hasRenderedFirstFrame by remember(mediaUri) { mutableStateOf(false) }
+
+    LaunchedEffect(mediaUri) {
+        Timber.tag("VideoNotePlayback").d("player.start mediaUriHash=%d", mediaUriHash)
+        exoPlayer.playWhenReady = true
+    }
+
+    DisposableEffect(exoPlayer) {
+        val listener = object : Player.Listener {
+            override fun onIsPlayingChanged(playing: Boolean) {
+                Timber.tag("VideoNotePlayback").d("player.onIsPlayingChanged mediaUriHash=%d playing=%s", mediaUriHash, playing)
+                isPlaying = playing
+            }
+
+            override fun onVideoSizeChanged(size: VideoSize) {
+                Timber.tag("VideoNotePlayback").d(
+                    "player.onVideoSizeChanged mediaUriHash=%d width=%d height=%d",
+                    mediaUriHash,
+                    size.width,
+                    size.height,
+                )
+                videoSize = size
+                // Apply crop immediately — no recomposition delay so no stretched frames
+                textureViewRef[0]?.let { tv -> isCropApplied = applyCenterCrop(tv, size) }
+            }
+
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                Timber.tag("VideoNotePlayback").d(
+                    "player.onPlaybackStateChanged mediaUriHash=%d state=%d",
+                    mediaUriHash,
+                    playbackState,
+                )
+                isBuffering = playbackState == STATE_BUFFERING
+                if (playbackState == STATE_ENDED) {
+                    isPlaying = false
+                    onPlaybackEnded()
+                }
+            }
+
+            override fun onRenderedFirstFrame() {
+                Timber.tag("VideoNotePlayback").d("player.onRenderedFirstFrame mediaUriHash=%d", mediaUriHash)
+                hasRenderedFirstFrame = true
+            }
+        }
+        exoPlayer.addListener(listener)
+        onDispose {
+            Timber.tag("VideoNotePlayback").d("player.dispose mediaUriHash=%d", mediaUriHash)
+            exoPlayer.removeListener(listener)
+            exoPlayer.release()
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .combinedClickable(
+                onClick = {
+                    Timber.tag("VideoNotePlayback").d(
+                        "player.click mediaUriHash=%d isPlaying=%s state=%d",
+                        mediaUriHash,
+                        exoPlayer.isPlaying,
+                        exoPlayer.playbackState,
+                    )
+                    if (exoPlayer.isPlaying) {
+                        exoPlayer.pause()
+                    } else {
+                        if (exoPlayer.playbackState == STATE_ENDED) {
+                            exoPlayer.seekTo(0)
+                        }
+                        exoPlayer.play()
+                    }
+                },
+                onLongClick = onLongClick,
+        ),
+        contentAlignment = Alignment.Center,
+    ) {
+        AndroidView(
+            modifier = Modifier
+                .fillMaxSize(),
+            factory = {
+                val textureView = TextureView(context).apply {
+                    layoutParams = FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
+                }
+                textureViewRef[0] = textureView
+                exoPlayer.setVideoTextureView(textureView)
+                FrameLayout(context).apply {
+                    layoutParams = FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
+                    clipToOutline = true
+                    outlineProvider = object : ViewOutlineProvider() {
+                        override fun getOutline(view: View, outline: Outline) {
+                            outline.setOval(0, 0, view.width, view.height)
+                        }
+                    }
+                    addView(textureView)
+                }
+            },
+            update = { container ->
+                val textureView = container.getChildAt(0) as TextureView
+                textureViewRef[0] = textureView
+                // Fallback: apply crop here if onVideoSizeChanged fired before TextureView had dimensions
+                if (!isCropApplied) {
+                    videoSize?.let { size -> isCropApplied = applyCenterCrop(textureView, size) }
+                }
+            },
+            onRelease = { container ->
+                val textureView = container.getChildAt(0) as TextureView
+                exoPlayer.clearVideoTextureView(textureView)
+                textureViewRef[0] = null
+            },
+        )
+
+        if (!hasRenderedFirstFrame || !isCropApplied) {
+            AsyncImage(
+                modifier = Modifier.fillMaxSize(),
+                model = MediaRequestData(
+                    source = thumbnailSource,
+                    kind = MediaRequestData.Kind.Thumbnail(
+                        width = thumbnailWidth?.toLong() ?: MAX_THUMBNAIL_WIDTH,
+                        height = thumbnailHeight?.toLong() ?: MAX_THUMBNAIL_HEIGHT,
+                    )
+                ),
+                contentScale = ContentScale.Crop,
+                alignment = Alignment.Center,
+                contentDescription = contentDescription,
+            )
+        }
+
+        when {
+            isBuffering -> CircularVideoLoadingIndicator()
+            !isPlaying -> VideoNotePlayButton(isVideoNote = true)
+        }
+    }
+}
+
+private fun applyCenterCrop(textureView: TextureView, videoSize: VideoSize?): Boolean {
+    val width = textureView.width.toFloat()
+    val height = textureView.height.toFloat()
+    val videoWidth = videoSize?.width?.toFloat()?.takeIf { it > 0f } ?: return false
+    val videoHeight = videoSize.height.toFloat().takeIf { it > 0f } ?: return false
+    if (width <= 0f || height <= 0f) return false
+
+    val viewRatio = width / height
+    val videoRatio = videoWidth / videoHeight
+    val scaleX: Float
+    val scaleY: Float
+    if (videoRatio > viewRatio) {
+        scaleX = videoRatio / viewRatio
+        scaleY = 1f
+    } else {
+        scaleX = 1f
+        scaleY = viewRatio / videoRatio
+    }
+
+    textureView.setTransform(
+        Matrix().apply {
+            setScale(scaleX, scaleY, width / 2f, height / 2f)
+        }
+    )
+    return true
+}
+
+@Composable
+private fun CircularVideoLoadingIndicator(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .clip(CircleShape)
+            .background(Color.Black.copy(alpha = 0.42f), CircleShape)
+            .padding(14.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        CircularProgressIndicator(
+            modifier = Modifier.size(32.dp),
+            color = Color.White,
+            strokeWidth = 3.dp,
+            trackColor = Color.White.copy(alpha = 0.25f),
+        )
+    }
+}
+
+@Composable
+private fun VideoNotePlayButton(isVideoNote: Boolean) {
+    val modifier = if (isVideoNote) {
+        Modifier
+            .clip(CircleShape)
+            .background(Color.Black.copy(alpha = 0.42f), CircleShape)
+            .padding(12.dp)
+    } else {
+        Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(Color.Black.copy(alpha = 0.42f), RoundedCornerShape(999.dp))
+            .padding(horizontal = 14.dp, vertical = 10.dp)
+    }
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center,
+    ) {
+        Image(
+            imageVector = CompoundIcons.PlaySolid(),
+            contentDescription = stringResource(id = CommonStrings.a11y_play),
+            colorFilter = ColorFilter.tint(Color.White),
+            modifier = Modifier.semantics { hideFromAccessibility() }
+        )
+    }
+}
+
+/**
+ * Extracts the first video frame from a local file URI so we can show a real thumbnail
+ * for video notes that haven't been uploaded yet (local echo has no server thumbnail).
+ * Returns null if the source already has a server thumbnail or if extraction fails.
+ */
+@Composable
+private fun rememberLocalVideoFrame(
+    localMediaUri: android.net.Uri?,
+    thumbnailSource: io.element.android.libraries.matrix.api.media.MediaSource?,
+): ImageBitmap? {
+    // Only needed when there is no server-side thumbnail
+    if (thumbnailSource != null || localMediaUri == null) return null
+    val context = LocalContext.current
+    val bitmap by produceState<Bitmap?>(null, localMediaUri) {
+        value = withContext(Dispatchers.IO) {
+            val retriever = MediaMetadataRetriever()
+            try {
+                retriever.setDataSource(context, localMediaUri)
+                retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+            } catch (e: Exception) {
+                Timber.e(e, "Failed to extract video note frame for local echo")
+                null
+            } finally {
+                retriever.release()
+            }
+        }
+    }
+    return bitmap?.asImageBitmap()
 }
 
 @PreviewsDayNight

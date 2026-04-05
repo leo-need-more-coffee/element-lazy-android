@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+  ~ Copyright (c) 2026 Element Creations Ltd.
+  ~
+  ~ SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
+  ~ Please see LICENSE files in the repository root for full details.
+  -->
+<resources>
+    <string name="action_add_sticker_pack">Add sticker pack</string>
+    <string name="action_import_sticker_pack_archive">Import .zip pack</string>
+    <string name="screen_message_sticker_picker_title">Stickers</string>
+    <string name="screen_message_sticker_picker_empty">No sticker packs yet. Import a .zip archive with images or webm stickers.</string>
+    <string name="screen_message_sticker_picker_importing">Importing pack…</string>
+    <string name="screen_message_sticker_picker_updating">Updating sticker packs…</string>
+    <string name="screen_message_sticker_pack_added">Sticker pack added</string>
+    <string name="screen_message_sticker_pack_removed">Sticker pack removed</string>
+    <string name="action_remove_sticker_pack">Remove sticker pack</string>
+    <string name="screen_room_attachment_source_camera_video_hold">Hold for video</string>
+    <string name="screen_message_composer_switch_camera">Switch camera</string>
+    <string name="screen_message_composer_sending_video_note">Sending video note…</string>
+    <string name="screen_message_composer_sending_video_note_short">Sending</string>
+    <string name="screen_message_composer_video_note_locked">Video note locked</string>
+    <string name="screen_message_composer_video_note_gesture_hint">Swipe up to lock, left to cancel</string>
+</resources>

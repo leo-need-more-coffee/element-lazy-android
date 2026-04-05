@@ -79,6 +79,7 @@ internal fun TimelineItemRow(
         { event, contentModifier, onContentLayoutChange ->
             TimelineItemEventContentView(
                 content = event.content,
+                presenterKey = event.eventOrTransactionId,
                 hideMediaContent = timelineProtectionState.hideMediaContent(event.eventId),
                 onShowContentClick = { timelineProtectionState.eventSink(TimelineProtectionEvent.ShowContent(event.eventId)) },
                 onContentClick = { onContentClick(event) },

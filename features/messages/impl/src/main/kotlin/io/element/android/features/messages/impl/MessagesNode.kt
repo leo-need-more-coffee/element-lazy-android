@@ -38,6 +38,7 @@ import io.element.android.features.messages.impl.messagecomposer.MessageComposer
 import io.element.android.features.messages.impl.timeline.TimelineController
 import io.element.android.features.messages.impl.timeline.TimelineEvent
 import io.element.android.features.messages.impl.timeline.TimelinePresenter
+import io.element.android.features.messages.impl.timeline.di.LocalMatrixMediaLoader
 import io.element.android.features.messages.impl.timeline.di.LocalTimelineItemPresenterFactories
 import io.element.android.features.messages.impl.timeline.di.TimelineItemPresenterFactories
 import io.element.android.features.messages.impl.timeline.model.TimelineItem
@@ -55,6 +56,7 @@ import io.element.android.libraries.di.RoomScope
 import io.element.android.libraries.di.annotations.ApplicationContext
 import io.element.android.libraries.di.annotations.SessionCoroutineScope
 import io.element.android.libraries.matrix.api.analytics.toAnalyticsViewRoom
+import io.element.android.libraries.matrix.api.media.MatrixMediaLoader
 import io.element.android.libraries.matrix.api.core.EventId
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.core.ThreadId
@@ -90,6 +92,7 @@ class MessagesNode(
     presenterFactory: MessagesPresenter.Factory,
     actionListPresenterFactory: ActionListPresenter.Factory,
     private val timelineItemPresenterFactories: TimelineItemPresenterFactories,
+    private val matrixMediaLoader: MatrixMediaLoader,
     private val mediaPlayer: MediaPlayer,
     private val permalinkParser: PermalinkParser,
     private val knockRequestsBannerRenderer: KnockRequestsBannerRenderer,
@@ -247,6 +250,7 @@ class MessagesNode(
         val isDark = ElementTheme.isLightTheme.not()
         CompositionLocalProvider(
             LocalTimelineItemPresenterFactories provides timelineItemPresenterFactories,
+            LocalMatrixMediaLoader provides matrixMediaLoader,
         ) {
             val state = presenter.present()
 

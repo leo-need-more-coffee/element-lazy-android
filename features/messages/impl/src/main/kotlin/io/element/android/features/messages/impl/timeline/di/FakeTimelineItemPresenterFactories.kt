@@ -9,6 +9,8 @@
 package io.element.android.features.messages.impl.timeline.di
 
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVoiceContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVideoContent
+import io.element.android.features.messages.impl.timeline.videonotes.VideoNotePlaybackState
 import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.voiceplayer.api.VoiceMessageState
 import io.element.android.libraries.voiceplayer.api.aVoiceMessageState
@@ -21,6 +23,19 @@ fun aFakeTimelineItemPresenterFactories() = TimelineItemPresenterFactories(
         Pair(
             TimelineItemVoiceContent::class,
             TimelineItemPresenterFactory<TimelineItemVoiceContent, VoiceMessageState> { Presenter { aVoiceMessageState() } },
+        ),
+        Pair(
+            TimelineItemVideoContent::class,
+            TimelineItemPresenterFactory<TimelineItemVideoContent, VideoNotePlaybackState> {
+                Presenter {
+                    VideoNotePlaybackState(
+                        localMediaUri = null,
+                        isLoading = false,
+                        isActive = false,
+                        eventSink = {},
+                    )
+                }
+            },
         ),
     )
 )

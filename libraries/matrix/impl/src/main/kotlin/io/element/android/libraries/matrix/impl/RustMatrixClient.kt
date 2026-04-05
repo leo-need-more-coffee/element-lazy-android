@@ -682,6 +682,18 @@ class RustMatrixClient(
         }
     }
 
+    override suspend fun getAccountData(eventType: String): Result<String?> = withContext(sessionDispatcher) {
+        runCatchingExceptions {
+            innerClient.accountData(eventType)
+        }
+    }
+
+    override suspend fun setAccountData(eventType: String, content: String): Result<Unit> = withContext(sessionDispatcher) {
+        runCatchingExceptions {
+            innerClient.setAccountData(eventType, content)
+        }
+    }
+
     override suspend fun uploadMedia(mimeType: String, data: ByteArray): Result<String> = withContext(sessionDispatcher) {
         runCatchingExceptions {
             innerClient.uploadMedia(mimeType, data, progressWatcher = null)

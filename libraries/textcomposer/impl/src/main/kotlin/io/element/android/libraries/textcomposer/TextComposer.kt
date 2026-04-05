@@ -13,6 +13,8 @@ import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,6 +41,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
@@ -78,6 +82,7 @@ import io.element.android.libraries.textcomposer.components.VoiceMessageDeleteBu
 import io.element.android.libraries.textcomposer.components.VoiceMessagePreview
 import io.element.android.libraries.textcomposer.components.VoiceMessageRecorderButtonIcon
 import io.element.android.libraries.textcomposer.components.VoiceMessageRecording
+import io.element.android.libraries.textcomposer.model.MessageComposerRecorderMode
 import io.element.android.libraries.textcomposer.components.markdown.MarkdownTextInput
 import io.element.android.libraries.textcomposer.components.textInputRoundedCornerShape
 import io.element.android.libraries.textcomposer.model.MessageComposerMode
@@ -96,6 +101,8 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.launch
 import uniffi.wysiwyg_composer.MenuAction
+import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -105,6 +112,8 @@ import kotlin.time.Duration.Companion.seconds
 fun TextComposer(
     state: TextEditorState,
     voiceMessageState: VoiceMessageState,
+    recorderMode: MessageComposerRecorderMode,
+    isVideoNoteRecording: Boolean,
     composerMode: MessageComposerMode,
     onRequestFocus: () -> Unit,
     onSendMessage: () -> Unit,
@@ -115,6 +124,12 @@ fun TextComposer(
     onVoicePlayerEvent: (VoiceMessagePlayerEvent) -> Unit,
     onSendVoiceMessage: () -> Unit,
     onDeleteVoiceMessage: () -> Unit,
+    onToggleRecorderMode: () -> Unit,
+    onOpenStickerPicker: (() -> Unit)?,
+    onStartVideoRecording: () -> Unit,
+    onFinishVideoRecording: () -> Unit,
+    onCancelVideoRecording: () -> Unit,
+    onLockVideoRecording: () -> Unit,
     onError: (Throwable) -> Unit,
     onTyping: (Boolean) -> Unit,
     onReceiveSuggestion: (Suggestion?) -> Unit,
@@ -217,6 +232,7 @@ fun TextComposer(
     }
 
     val canSendTextMessage = markdown.isNotBlank() || composerMode is MessageComposerMode.Attachment
+    val isTextEmpty = markdown.isBlank()
 
     val textFormattingOptions: @Composable (() -> Unit)? = (state as? TextEditorState.Rich)?.let {
         @Composable { TextFormatting(state = it.richTextEditorState) }
@@ -233,31 +249,42 @@ fun TextComposer(
         composerMode.isEditing,
         voiceMessageState.endButtonKey(),
         canSendTextMessage,
+        recorderMode,
     ) {
         when {
             !canSendTextMessage ->
                 when (voiceMessageState) {
-                    VoiceMessageState.Idle -> EndButtonParams(
-                        endButtonContentDescriptionResId = CommonStrings.a11y_voice_message_record,
-                        endButtonClick = {
-                            performHapticFeedback()
-                            onVoiceRecorderEvent.invoke(VoiceMessageRecorderEvent.Start)
-                        },
-                        endButtonContent = @Composable {
-                            VoiceMessageRecorderButtonIcon(
-                                isRecording = false,
-                            )
-                        }
-                    )
+                    VoiceMessageState.Idle,
                     is VoiceMessageState.Recording -> EndButtonParams(
-                        endButtonContentDescriptionResId = CommonStrings.a11y_voice_message_stop_recording,
-                        endButtonClick = {
-                            performHapticFeedback()
-                            onVoiceRecorderEvent.invoke(VoiceMessageRecorderEvent.Stop)
+                        endButtonContentDescriptionResId = when (recorderMode) {
+                            MessageComposerRecorderMode.Audio ->
+                                if (voiceMessageState is VoiceMessageState.Recording) {
+                                    CommonStrings.a11y_voice_message_stop_recording
+                                } else {
+                                    CommonStrings.a11y_voice_message_record
+                                }
+                            MessageComposerRecorderMode.Video -> CommonStrings.common_video
                         },
+                        endButtonClick = {},
+                        useCustomContainer = true,
                         endButtonContent = @Composable {
-                            VoiceMessageRecorderButtonIcon(
-                                isRecording = true,
+                            RecorderGestureButton(
+                                recorderMode = recorderMode,
+                                onTap = onToggleRecorderMode,
+                                onHapticFeedback = ::performHapticFeedback,
+                                onStartAudioRecording = {
+                                    onVoiceRecorderEvent.invoke(VoiceMessageRecorderEvent.Start)
+                                },
+                                onStopAudioRecording = {
+                                    onVoiceRecorderEvent.invoke(VoiceMessageRecorderEvent.Stop)
+                                },
+                                onCancelAudioRecording = {
+                                    onVoiceRecorderEvent.invoke(VoiceMessageRecorderEvent.Cancel)
+                                },
+                                onStartVideoRecording = onStartVideoRecording,
+                                onStopVideoRecording = onFinishVideoRecording,
+                                onCancelVideoRecording = onCancelVideoRecording,
+                                onLockRecording = onLockVideoRecording,
                             )
                         }
                     )
@@ -400,6 +427,8 @@ fun TextComposer(
             onAddAttachment = onAddAttachment,
             onDeleteVoiceMessage = onDeleteVoiceMessage,
             onVoiceRecorderEvent = onVoiceRecorderEvent,
+            onOpenStickerPicker = onOpenStickerPicker,
+            showStickerButton = isTextEmpty && voiceMessageState is VoiceMessageState.Idle,
         )
     }
 
@@ -427,6 +456,7 @@ private data class EndButtonParams(
     val endButtonContentDescriptionResId: Int,
     val endButtonClick: () -> Unit,
     val endButtonContent: @Composable () -> Unit,
+    val useCustomContainer: Boolean = false,
 )
 
 @Composable
@@ -440,6 +470,8 @@ private fun StandardLayout(
     onAddAttachment: () -> Unit,
     onDeleteVoiceMessage: () -> Unit,
     onVoiceRecorderEvent: (VoiceMessageRecorderEvent) -> Unit,
+    onOpenStickerPicker: (() -> Unit)?,
+    showStickerButton: Boolean,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier) {
@@ -510,9 +542,22 @@ private fun StandardLayout(
                     voiceRecording()
                 }
             }
+            if (showStickerButton && onOpenStickerPicker != null) {
+                IconButton(
+                    modifier = Modifier
+                        .padding(bottom = 5.dp, top = 5.dp, start = 6.dp)
+                        .size(48.dp),
+                    onClick = onOpenStickerPicker,
+                ) {
+                    Icon(
+                        imageVector = CompoundIcons.Sticker(),
+                        contentDescription = stringResource(CommonStrings.common_sticker),
+                    )
+                }
+            }
             // To avoid loosing keyboard focus, the IconButton has to be defined here and has to be always enabled.
             val endButtonContentDescription = stringResource(endButtonParams.endButtonContentDescriptionResId)
-            IconButton(
+            Box(
                 modifier = Modifier
                     .padding(bottom = 5.dp, top = 5.dp, end = 6.dp, start = 6.dp)
                     .size(48.dp)
@@ -520,8 +565,100 @@ private fun StandardLayout(
                         contentDescription = endButtonContentDescription
                         onClick(null, null)
                     },
-                onClick = endButtonParams.endButtonClick,
-                content = endButtonParams.endButtonContent,
+            ) {
+                if (endButtonParams.useCustomContainer) {
+                    endButtonParams.endButtonContent()
+                } else {
+                    IconButton(
+                        modifier = Modifier.size(48.dp),
+                        onClick = endButtonParams.endButtonClick,
+                        content = endButtonParams.endButtonContent,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecorderGestureButton(
+    recorderMode: MessageComposerRecorderMode,
+    onTap: () -> Unit,
+    onHapticFeedback: () -> Unit,
+    onStartAudioRecording: () -> Unit,
+    onStopAudioRecording: () -> Unit,
+    onCancelAudioRecording: () -> Unit,
+    onStartVideoRecording: () -> Unit,
+    onStopVideoRecording: () -> Unit,
+    onCancelVideoRecording: () -> Unit,
+    onLockRecording: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val cancelThresholdPx = 96.dp
+    val lockThresholdPx = 72.dp
+    Box(
+        modifier = modifier
+            .size(48.dp)
+            .pointerInput(recorderMode) {
+                val cancelThreshold = cancelThresholdPx.toPx()
+                val lockThreshold = lockThresholdPx.toPx()
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val start = down.position
+                    val longPress = awaitLongPressOrCancellation(down.id)
+                    if (longPress == null) {
+                        onTap()
+                        return@awaitEachGesture
+                    }
+
+                    var isLocked = false
+                    var isCancelled = false
+                    onHapticFeedback()
+                    when (recorderMode) {
+                        MessageComposerRecorderMode.Audio -> onStartAudioRecording()
+                        MessageComposerRecorderMode.Video -> onStartVideoRecording()
+                    }
+
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        if (!change.pressed) break
+
+                        val totalDelta = change.position - start
+                        if (!isLocked && totalDelta.x <= -cancelThreshold) {
+                            when (recorderMode) {
+                                MessageComposerRecorderMode.Audio -> onCancelAudioRecording()
+                                MessageComposerRecorderMode.Video -> onCancelVideoRecording()
+                            }
+                            isCancelled = true
+                            break
+                        }
+                        if (!isLocked && totalDelta.y <= -lockThreshold) {
+                            onLockRecording()
+                            isLocked = true
+                        }
+                        if (change.positionChange() != androidx.compose.ui.geometry.Offset.Zero) {
+                            change.consume()
+                        }
+                    }
+
+                    if (!isCancelled && !isLocked) {
+                        when (recorderMode) {
+                            MessageComposerRecorderMode.Audio -> onStopAudioRecording()
+                            MessageComposerRecorderMode.Video -> onStopVideoRecording()
+                        }
+                    }
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        when (recorderMode) {
+            MessageComposerRecorderMode.Audio -> VoiceMessageRecorderButtonIcon(isRecording = false)
+            MessageComposerRecorderMode.Video -> Icon(
+                modifier = Modifier.size(24.dp),
+                imageVector = CompoundIcons.VideoCallSolid(),
+                contentDescription = null,
+                tint = ElementTheme.colors.iconSecondary,
             )
         }
     }
@@ -992,6 +1129,8 @@ private fun ATextComposer(
         state = state,
         showTextFormatting = showTextFormatting,
         voiceMessageState = voiceMessageState,
+        recorderMode = MessageComposerRecorderMode.Audio,
+        isVideoNoteRecording = false,
         composerMode = composerMode,
         onRequestFocus = {},
         onSendMessage = {},
@@ -1002,6 +1141,12 @@ private fun ATextComposer(
         onVoicePlayerEvent = {},
         onSendVoiceMessage = {},
         onDeleteVoiceMessage = {},
+        onToggleRecorderMode = {},
+        onOpenStickerPicker = null,
+        onStartVideoRecording = {},
+        onFinishVideoRecording = {},
+        onCancelVideoRecording = {},
+        onLockVideoRecording = {},
         onError = {},
         onTyping = {},
         onReceiveSuggestion = {},

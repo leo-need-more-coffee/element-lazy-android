@@ -13,6 +13,8 @@ import androidx.compose.ui.graphics.Color
 import io.element.android.compound.annotations.CoreColorToken
 import io.element.android.compound.previews.ColorListPreview
 import io.element.android.compound.theme.ElementTheme
+import io.element.android.compound.theme.LocalIncomingBubbleColor
+import io.element.android.compound.theme.LocalOutgoingBubbleColor
 import io.element.android.compound.tokens.generated.SemanticColors
 import io.element.android.compound.tokens.generated.internal.DarkColorTokens
 import io.element.android.compound.tokens.generated.internal.LightColorTokens
@@ -41,12 +43,12 @@ val SemanticColors.placeholderBackground
 // This color is not present in Semantic color, so put hard-coded value for now
 @OptIn(CoreColorToken::class)
 val SemanticColors.messageFromMeBackground
-    get() = if (isLight) LightColorTokens.colorGray400 else DarkColorTokens.colorGray500
+    @Composable get() = LocalOutgoingBubbleColor.current ?: if (isLight) LightColorTokens.colorGray400 else DarkColorTokens.colorGray500
 
 // This color is not present in Semantic color, so put hard-coded value for now
 @OptIn(CoreColorToken::class)
 val SemanticColors.messageFromOtherBackground
-    get() = if (isLight) LightColorTokens.colorGray300 else DarkColorTokens.colorGray400
+    @Composable get() = LocalIncomingBubbleColor.current ?: if (isLight) LightColorTokens.colorGray300 else DarkColorTokens.colorGray400
 
 // This color is not present in Semantic color, so put hard-coded value for now
 @OptIn(CoreColorToken::class)

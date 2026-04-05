@@ -30,6 +30,7 @@ import io.element.android.features.messages.impl.timeline.model.event.TimelineIt
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemUnknownContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVideoContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVoiceContent
+import io.element.android.features.messages.impl.timeline.videonotes.VideoNotePlaybackState
 import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.voiceplayer.api.VoiceMessageState
 import io.element.android.wysiwyg.link.Link
@@ -37,6 +38,7 @@ import io.element.android.wysiwyg.link.Link
 @Composable
 fun TimelineItemEventContentView(
     content: TimelineItemEventContent,
+    presenterKey: Any = content,
     hideMediaContent: Boolean,
     onContentClick: (() -> Unit)?,
     onLongClick: (() -> Unit)?,
@@ -96,6 +98,10 @@ fun TimelineItemEventContentView(
         )
         is TimelineItemVideoContent -> TimelineItemVideoView(
             content = content,
+            playbackState = presenterFactories.rememberPresenter<TimelineItemVideoContent, VideoNotePlaybackState>(
+                content = content,
+                presenterKey = presenterKey,
+            ).present(),
             hideMediaContent = hideMediaContent,
             onContentClick = onContentClick,
             onLongClick = onLongClick,

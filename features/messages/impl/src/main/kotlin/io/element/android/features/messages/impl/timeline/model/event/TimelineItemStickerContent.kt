@@ -8,6 +8,7 @@
 
 package io.element.android.features.messages.impl.timeline.model.event
 
+import io.element.android.features.messages.impl.stickers.parseStickerPackSourceUrl
 import io.element.android.libraries.matrix.api.media.MediaSource
 
 data class TimelineItemStickerContent(
@@ -31,4 +32,6 @@ data class TimelineItemStickerContent(
     /* Stickers are supposed to be small images so
        we allow using the mediaSource (unless the url is empty) */
     val preferredMediaSource = if (mediaSource.safeUrl.isEmpty()) thumbnailSource else mediaSource
+
+    val stickerPackSourceUrl = parseStickerPackSourceUrl(caption, filename)
 }

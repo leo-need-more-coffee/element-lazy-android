@@ -15,8 +15,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import dev.zacsweers.metro.Inject
+import io.element.android.compound.theme.AccentPresets
+import io.element.android.compound.theme.BubbleRadiusOption
+import io.element.android.compound.theme.FontSizeOption
 import io.element.android.compound.theme.Theme
 import io.element.android.compound.theme.mapToTheme
+import io.element.android.compound.theme.parseAccentColor
+import io.element.android.compound.theme.parseBubbleRadiusOption
+import io.element.android.compound.theme.parseFontSizeOption
+import io.element.android.compound.theme.toHexString
 import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.di.annotations.SessionCoroutineScope
 import io.element.android.libraries.featureflag.api.FeatureFlagService
@@ -48,6 +55,49 @@ class AdvancedSettingsPresenter(
         val theme = remember {
             appPreferencesStore.getThemeFlow().mapToTheme()
         }.collectAsState(initial = Theme.System)
+
+        val accentColorHex by remember {
+            appPreferencesStore.getAccentColorFlow()
+        }.collectAsState(initial = null)
+        val accentColor = parseAccentColor(accentColorHex) ?: AccentPresets.default
+
+        val appBgColorHex by remember {
+            appPreferencesStore.getAppBgColorFlow()
+        }.collectAsState(initial = null)
+        val appBgColor = parseAccentColor(appBgColorHex)
+
+        val fontSizeName by remember {
+            appPreferencesStore.getFontSizeFlow()
+        }.collectAsState(initial = null)
+        val fontSize = when (parseFontSizeOption(fontSizeName)) {
+            FontSizeOption.Small -> FontSizePreferenceOption.Small
+            FontSizeOption.Normal -> FontSizePreferenceOption.Normal
+            FontSizeOption.Large -> FontSizePreferenceOption.Large
+        }
+
+        val chatBgHex by remember {
+            appPreferencesStore.getChatBgColorFlow()
+        }.collectAsState(initial = null)
+        val chatBgColor = parseAccentColor(chatBgHex)
+
+        val outgoingBubbleColorHex by remember {
+            appPreferencesStore.getOutgoingBubbleColorFlow()
+        }.collectAsState(initial = null)
+        val outgoingBubbleColor = parseAccentColor(outgoingBubbleColorHex)
+
+        val incomingBubbleColorHex by remember {
+            appPreferencesStore.getIncomingBubbleColorFlow()
+        }.collectAsState(initial = null)
+        val incomingBubbleColor = parseAccentColor(incomingBubbleColorHex)
+
+        val bubbleRadiusName by remember {
+            appPreferencesStore.getBubbleRadiusFlow()
+        }.collectAsState(initial = null)
+        val bubbleRadius = when (parseBubbleRadiusOption(bubbleRadiusName)) {
+            BubbleRadiusOption.Sharp -> BubbleRadiusPreferenceOption.Sharp
+            BubbleRadiusOption.Standard -> BubbleRadiusPreferenceOption.Standard
+            BubbleRadiusOption.Round -> BubbleRadiusPreferenceOption.Round
+        }
 
         val mediaPreviewConfigState = mediaPreviewConfigStateStore.state()
 
@@ -101,6 +151,27 @@ class AdvancedSettingsPresenter(
                         ThemeOption.Light -> appPreferencesStore.setTheme(Theme.Light.name)
                     }
                 }
+                is AdvancedSettingsEvents.SetAccentColor -> sessionCoroutineScope.launch {
+                    appPreferencesStore.setAccentColor(event.color.toHexString())
+                }
+                is AdvancedSettingsEvents.SetAppBgColor -> sessionCoroutineScope.launch {
+                    appPreferencesStore.setAppBgColor(event.color?.toHexString())
+                }
+                is AdvancedSettingsEvents.SetFontSize -> sessionCoroutineScope.launch {
+                    appPreferencesStore.setFontSize(event.fontSize.name)
+                }
+                is AdvancedSettingsEvents.SetChatBgColor -> sessionCoroutineScope.launch {
+                    appPreferencesStore.setChatBgColor(event.color?.toHexString())
+                }
+                is AdvancedSettingsEvents.SetOutgoingBubbleColor -> sessionCoroutineScope.launch {
+                    appPreferencesStore.setOutgoingBubbleColor(event.color?.toHexString())
+                }
+                is AdvancedSettingsEvents.SetIncomingBubbleColor -> sessionCoroutineScope.launch {
+                    appPreferencesStore.setIncomingBubbleColor(event.color?.toHexString())
+                }
+                is AdvancedSettingsEvents.SetBubbleRadius -> sessionCoroutineScope.launch {
+                    appPreferencesStore.setBubbleRadius(event.bubbleRadius.name)
+                }
                 is AdvancedSettingsEvents.SetHideInviteAvatars -> mediaPreviewConfigStateStore.setHideInviteAvatars(event.value)
                 is AdvancedSettingsEvents.SetTimelineMediaPreviewValue -> mediaPreviewConfigStateStore.setTimelineMediaPreviewValue(event.value)
                 is AdvancedSettingsEvents.SetCompressImages -> sessionCoroutineScope.launch {
@@ -117,6 +188,13 @@ class AdvancedSettingsPresenter(
             isSharePresenceEnabled = isSharePresenceEnabled,
             mediaOptimizationState = mediaOptimizationState,
             theme = themeOption,
+            accentColor = accentColor,
+            appBgColor = appBgColor,
+            fontSize = fontSize,
+            chatBgColor = chatBgColor,
+            outgoingBubbleColor = outgoingBubbleColor,
+            incomingBubbleColor = incomingBubbleColor,
+            bubbleRadius = bubbleRadius,
             mediaPreviewConfigState = mediaPreviewConfigState,
             eventSink = ::handleEvent,
         )

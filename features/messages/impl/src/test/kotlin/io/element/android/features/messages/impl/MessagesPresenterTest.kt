@@ -38,6 +38,7 @@ import io.element.android.features.messages.impl.timeline.model.event.aTimelineI
 import io.element.android.features.messages.impl.timeline.model.event.aTimelineItemPollContent
 import io.element.android.features.messages.impl.timeline.model.event.aTimelineItemTextContent
 import io.element.android.features.messages.impl.timeline.protection.aTimelineProtectionState
+import io.element.android.features.messages.impl.stickers.StickerPackService
 import io.element.android.features.messages.test.timeline.FakeHtmlConverterProvider
 import io.element.android.features.messages.test.timeline.voicemessages.composer.FakeDefaultVoiceMessageComposerPresenterFactory
 import io.element.android.features.roomcall.api.aStandByCallState
@@ -65,6 +66,7 @@ import io.element.android.libraries.matrix.api.room.RoomMembersState
 import io.element.android.libraries.matrix.api.room.RoomMembershipState
 import io.element.android.libraries.matrix.api.room.StateEventType
 import io.element.android.libraries.matrix.api.room.history.RoomHistoryVisibility
+import io.element.android.libraries.matrix.api.stickers.StickerPackManifest
 import io.element.android.libraries.matrix.api.room.tombstone.SuccessorRoom
 import io.element.android.libraries.matrix.api.timeline.Timeline
 import io.element.android.libraries.matrix.api.timeline.item.TimelineItemDebugInfo
@@ -1321,6 +1323,15 @@ class MessagesPresenterTest {
         actionListEventSink: (ActionListEvent) -> Unit = {},
         addRecentEmoji: AddRecentEmoji = AddRecentEmoji { _ -> lambdaError() },
         markAsFullyRead: MarkAsFullyRead = FakeMarkAsFullyRead(),
+        stickerPackService: StickerPackService = object : StickerPackService {
+            override suspend fun getPacks(): Result<List<StickerPackManifest>> = Result.success(emptyList())
+            override suspend fun savePacks(packs: List<StickerPackManifest>) = Result.success(Unit)
+            override suspend fun addPack(pack: StickerPackManifest) = Result.success(Unit)
+            override suspend fun importPack(sourceUrl: String): Result<StickerPackManifest> =
+                Result.failure(IllegalStateException("No sticker pack configured for test"))
+            override suspend fun importPackArchive(uri: android.net.Uri): Result<StickerPackManifest> =
+                Result.failure(IllegalStateException("No sticker pack configured for test"))
+        },
     ): MessagesPresenter {
         return MessagesPresenter(
             navigator = navigator,
@@ -1350,6 +1361,7 @@ class MessagesPresenterTest {
             featureFlagService = featureFlagService,
             addRecentEmoji = addRecentEmoji,
             markAsFullyRead = markAsFullyRead,
+            stickerPackService = stickerPackService,
             sessionCoroutineScope = backgroundScope,
         )
     }

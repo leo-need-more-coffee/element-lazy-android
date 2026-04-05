@@ -10,7 +10,11 @@ package io.element.android.features.preferences.impl.advanced
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import io.element.android.compound.theme.BubbleRadiusOption
+import io.element.android.compound.theme.FontSizeOption
+import io.element.android.features.preferences.impl.R
 import io.element.android.libraries.designsystem.components.preferences.DropdownOption
 import io.element.android.libraries.preferences.api.store.VideoCompressionPreset
 import io.element.android.libraries.ui.strings.CommonStrings
@@ -20,6 +24,13 @@ data class AdvancedSettingsState(
     val isSharePresenceEnabled: Boolean,
     val mediaOptimizationState: MediaOptimizationState?,
     val theme: ThemeOption,
+    val accentColor: Color,
+    val appBgColor: Color?,
+    val fontSize: FontSizePreferenceOption,
+    val chatBgColor: Color?,
+    val outgoingBubbleColor: Color?,
+    val incomingBubbleColor: Color?,
+    val bubbleRadius: BubbleRadiusPreferenceOption,
     val mediaPreviewConfigState: MediaPreviewConfigState,
     val eventSink: (AdvancedSettingsEvents) -> Unit
 )
@@ -53,4 +64,40 @@ enum class ThemeOption : DropdownOption {
         @ReadOnlyComposable
         override fun getText(): String = stringResource(CommonStrings.common_light)
     }
+}
+
+enum class FontSizePreferenceOption(val option: FontSizeOption) : DropdownOption {
+    Small(FontSizeOption.Small) {
+        @Composable
+        @ReadOnlyComposable
+        override fun getText(): String = stringResource(R.string.screen_advanced_settings_font_size_small)
+    },
+    Normal(FontSizeOption.Normal) {
+        @Composable
+        @ReadOnlyComposable
+        override fun getText(): String = stringResource(R.string.screen_advanced_settings_font_size_normal)
+    },
+    Large(FontSizeOption.Large) {
+        @Composable
+        @ReadOnlyComposable
+        override fun getText(): String = stringResource(R.string.screen_advanced_settings_font_size_large)
+    },
+}
+
+enum class BubbleRadiusPreferenceOption(val option: BubbleRadiusOption) : DropdownOption {
+    Sharp(BubbleRadiusOption.Sharp) {
+        @Composable
+        @ReadOnlyComposable
+        override fun getText(): String = stringResource(R.string.screen_advanced_settings_bubble_radius_sharp)
+    },
+    Standard(BubbleRadiusOption.Standard) {
+        @Composable
+        @ReadOnlyComposable
+        override fun getText(): String = stringResource(R.string.screen_advanced_settings_bubble_radius_standard)
+    },
+    Round(BubbleRadiusOption.Round) {
+        @Composable
+        @ReadOnlyComposable
+        override fun getText(): String = stringResource(R.string.screen_advanced_settings_bubble_radius_round)
+    },
 }

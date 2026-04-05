@@ -10,14 +10,17 @@ package io.element.android.features.messages.impl.messagecomposer
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Context
 import android.net.Uri
 import androidx.annotation.VisibleForTesting
+import androidx.core.content.FileProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,12 +36,14 @@ import im.vector.app.features.analytics.plan.Composer
 import im.vector.app.features.analytics.plan.Interaction
 import io.element.android.features.location.api.LocationService
 import io.element.android.features.messages.impl.MessagesNavigator
+import io.element.android.features.messages.impl.R
 import io.element.android.features.messages.impl.attachments.Attachment
 import io.element.android.features.messages.impl.attachments.Attachment.Media
 import io.element.android.features.messages.impl.attachments.preview.error.sendAttachmentError
 import io.element.android.features.messages.impl.draft.ComposerDraftService
 import io.element.android.features.messages.impl.messagecomposer.suggestions.RoomAliasSuggestionsDataSource
 import io.element.android.features.messages.impl.messagecomposer.suggestions.SuggestionsProcessor
+import io.element.android.features.messages.impl.stickers.StickerPackService
 import io.element.android.features.messages.impl.timeline.TimelineController
 import io.element.android.features.messages.impl.utils.TextPillificationHelper
 import io.element.android.libraries.architecture.AsyncAction
@@ -47,6 +52,7 @@ import io.element.android.libraries.core.extensions.runCatchingExceptions
 import io.element.android.libraries.core.mimetype.MimeTypes
 import io.element.android.libraries.designsystem.utils.snackbar.SnackbarDispatcher
 import io.element.android.libraries.designsystem.utils.snackbar.SnackbarMessage
+import io.element.android.libraries.di.annotations.ApplicationContext
 import io.element.android.libraries.di.annotations.SessionCoroutineScope
 import io.element.android.libraries.matrix.api.core.EventId
 import io.element.android.libraries.matrix.api.core.UserId
@@ -58,6 +64,9 @@ import io.element.android.libraries.matrix.api.room.draft.ComposerDraft
 import io.element.android.libraries.matrix.api.room.draft.ComposerDraftType
 import io.element.android.libraries.matrix.api.room.getDirectRoomMember
 import io.element.android.libraries.matrix.api.room.isDm
+import io.element.android.libraries.matrix.api.stickers.StickerFormat
+import io.element.android.libraries.matrix.api.stickers.StickerPackItem
+import io.element.android.libraries.matrix.api.stickers.StickerPackManifest
 import io.element.android.libraries.matrix.api.room.powerlevels.use
 import io.element.android.libraries.matrix.api.timeline.TimelineException
 import io.element.android.libraries.matrix.api.timeline.item.event.toEventOrTransactionId
@@ -74,11 +83,13 @@ import io.element.android.libraries.push.api.notifications.conversations.Notific
 import io.element.android.libraries.slashcommands.api.SlashCommand
 import io.element.android.libraries.slashcommands.api.SlashCommandService
 import io.element.android.libraries.slashcommands.api.message
+import io.element.android.libraries.ui.strings.CommonStrings
 import io.element.android.libraries.textcomposer.mentions.MentionSpanProvider
 import io.element.android.libraries.textcomposer.mentions.ResolvedSuggestion
 import io.element.android.libraries.textcomposer.model.MarkdownTextEditorState
 import io.element.android.libraries.textcomposer.model.Message
 import io.element.android.libraries.textcomposer.model.MessageComposerMode
+import io.element.android.libraries.textcomposer.model.MessageComposerRecorderMode
 import io.element.android.libraries.textcomposer.model.Suggestion
 import io.element.android.libraries.textcomposer.model.TextEditorState
 import io.element.android.libraries.textcomposer.model.rememberMarkdownTextEditorState
@@ -91,6 +102,7 @@ import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -101,7 +113,13 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 import timber.log.Timber
+import java.io.File
+import kotlin.time.Duration.Companion.ZERO
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import io.element.android.libraries.core.mimetype.MimeTypes.Any as AnyMimeTypes
 
@@ -111,6 +129,7 @@ class MessageComposerPresenter(
     @Assisted private val navigator: MessagesNavigator,
     @Assisted private val timelineController: TimelineController,
     @Assisted private val isInThread: Boolean,
+    @ApplicationContext private val context: Context,
     @SessionCoroutineScope private val sessionCoroutineScope: CoroutineScope,
     private val room: JoinedRoom,
     private val mediaPickerProvider: PickerProvider,
@@ -133,6 +152,7 @@ class MessageComposerPresenter(
     private val mediaOptimizationConfigProvider: MediaOptimizationConfigProvider,
     private val notificationConversationService: NotificationConversationService,
     private val slashCommandService: SlashCommandService,
+    private val stickerPackService: StickerPackService,
 ) : Presenter<MessageComposerState> {
     @AssistedFactory
     interface Factory {
@@ -192,10 +212,28 @@ class MessageComposerPresenter(
             mutableStateOf(false)
         }
         var showAttachmentSourcePicker: Boolean by remember { mutableStateOf(false) }
+        var showStickerPicker by remember { mutableStateOf(false) }
+        var isImportingStickerPack by remember { mutableStateOf(false) }
+        var stickerPacks by remember { mutableStateOf<List<StickerPackManifest>>(emptyList()) }
+        var recorderMode by rememberSaveable { mutableStateOf(MessageComposerRecorderMode.Audio) }
+        var videoNoteState: VideoNoteState by remember { mutableStateOf(VideoNoteState.Hidden) }
+        var videoNoteStartEpochMs by remember { mutableStateOf<Long?>(null) }
+        var videoNoteTimerJob by remember { mutableStateOf<Job?>(null) }
+        var nextVideoRecordingId by remember { mutableIntStateOf(0) }
 
         val sendTypingNotifications by remember {
             sessionPreferencesStore.isSendTypingNotificationsEnabled()
         }.collectAsState(initial = true)
+
+        suspend fun refreshStickerPacks() {
+            stickerPacks = stickerPackService.getPacks()
+                .getOrDefault(emptyList())
+                .filter { pack -> pack.items.isNotEmpty() }
+        }
+
+        LaunchedEffect(Unit) {
+            refreshStickerPacks()
+        }
 
         LaunchedEffect(cameraPermissionState.permissionGranted) {
             if (cameraPermissionState.permissionGranted) {
@@ -244,6 +282,62 @@ class MessageComposerPresenter(
             }
         }
 
+        fun stopVideoNoteTimer() {
+            videoNoteTimerJob?.cancel()
+            videoNoteTimerJob = null
+            videoNoteStartEpochMs = null
+        }
+
+        fun startVideoNoteTimer(recordingId: Int) {
+            stopVideoNoteTimer()
+            val startedAt = System.currentTimeMillis()
+            videoNoteStartEpochMs = startedAt
+            videoNoteTimerJob = localCoroutineScope.launch {
+                while (true) {
+                    val currentState = videoNoteState as? VideoNoteState.Recording ?: break
+                    if (currentState.recordingId != recordingId) break
+                    val elapsed = (System.currentTimeMillis() - startedAt).coerceAtLeast(0).toInt().milliseconds
+                    videoNoteState = currentState.copy(elapsedTime = elapsed)
+                    delay(100)
+                }
+            }
+        }
+
+        fun beginVideoNoteRecording() {
+            nextVideoRecordingId += 1
+            val recordingId = nextVideoRecordingId
+            videoNoteState = VideoNoteState.Recording(
+                recordingId = recordingId,
+                elapsedTime = ZERO,
+                isLocked = false,
+                action = VideoNoteState.RecordingAction.Active,
+            )
+            startVideoNoteTimer(recordingId)
+        }
+
+        fun resetVideoNoteState() {
+            stopVideoNoteTimer()
+            videoNoteState = VideoNoteState.Hidden
+        }
+
+        fun finishVideoNoteRecording(cancelled: Boolean) {
+            if (videoNoteState is VideoNoteState.RequestingPermissions) {
+                resetVideoNoteState()
+                return
+            }
+            val currentState = videoNoteState as? VideoNoteState.Recording ?: return
+            if (cancelled && currentState.action == VideoNoteState.RecordingAction.CancelRequested) {
+                resetVideoNoteState()
+                return
+            }
+            val nextAction = if (cancelled) {
+                VideoNoteState.RecordingAction.CancelRequested
+            } else {
+                VideoNoteState.RecordingAction.StopRequested
+            }
+            videoNoteState = currentState.copy(action = nextAction)
+        }
+
         fun handleEvent(event: MessageComposerEvent) {
             when (event) {
                 MessageComposerEvent.ToggleFullScreenState -> isFullScreen.value = !isFullScreen.value
@@ -280,11 +374,53 @@ class MessageComposerPresenter(
                     // Reset composer since the attachment has been sent
                     messageComposerContext.composerMode = MessageComposerMode.Normal
                 }
+                is MessageComposerEvent.SendSticker -> {
+                    showAttachmentSourcePicker = false
+                    showStickerPicker = false
+                    sessionCoroutineScope.launch {
+                        sendSticker(event.pack, event.sticker)
+                    }
+                }
                 is MessageComposerEvent.SetMode -> {
                     localCoroutineScope.setMode(event.composerMode, markdownTextEditorState, richTextEditorState)
                 }
                 MessageComposerEvent.AddAttachment -> localCoroutineScope.launch {
+                    showStickerPicker = false
                     showAttachmentSourcePicker = true
+                }
+                MessageComposerEvent.ShowStickerPicker -> localCoroutineScope.launch {
+                    showStickerPicker = true
+                    showAttachmentSourcePicker = false
+                    refreshStickerPacks()
+                }
+                MessageComposerEvent.DismissStickerPicker -> showStickerPicker = false
+                is MessageComposerEvent.ImportStickerPackArchive -> localCoroutineScope.launch {
+                    isImportingStickerPack = true
+                    stickerPackService.importPackArchive(event.uri)
+                        .onSuccess { pack ->
+                            stickerPacks = (stickerPacks + pack)
+                                .distinctBy { it.id }
+                                .filter { it.items.isNotEmpty() }
+                            snackbarDispatcher.post(SnackbarMessage(R.string.screen_message_sticker_pack_added))
+                        }
+                        .onFailure { cause ->
+                            Timber.e(cause, "Failed to import sticker pack archive")
+                            snackbarDispatcher.post(SnackbarMessage(CommonStrings.common_error))
+                        }
+                    isImportingStickerPack = false
+                }
+                is MessageComposerEvent.RemoveStickerPack -> localCoroutineScope.launch {
+                    isImportingStickerPack = true
+                    stickerPackService.removePack(event.packId)
+                        .onSuccess {
+                            stickerPacks = stickerPacks.filterNot { it.id == event.packId }
+                            snackbarDispatcher.post(SnackbarMessage(R.string.screen_message_sticker_pack_removed))
+                        }
+                        .onFailure { cause ->
+                            Timber.e(cause, "Failed to remove sticker pack")
+                            snackbarDispatcher.post(SnackbarMessage(CommonStrings.common_error))
+                        }
+                    isImportingStickerPack = false
                 }
                 MessageComposerEvent.DismissAttachmentMenu -> showAttachmentSourcePicker = false
                 MessageComposerEvent.PickAttachmentSource.FromGallery -> localCoroutineScope.launch {
@@ -375,6 +511,54 @@ class MessageComposerPresenter(
                 MessageComposerEvent.ClearSlashError -> {
                     slashCommandAction.value = AsyncAction.Uninitialized
                 }
+                is MessageComposerEvent.SetRecorderMode -> {
+                    recorderMode = event.mode
+                }
+                MessageComposerEvent.StartVideoNoteRecording -> {
+                    showAttachmentSourcePicker = false
+                    videoNoteState = VideoNoteState.RequestingPermissions
+                }
+                MessageComposerEvent.VideoNotePermissionsGranted -> {
+                    beginVideoNoteRecording()
+                }
+                MessageComposerEvent.LockVideoNoteRecording -> {
+                    val currentState = videoNoteState as? VideoNoteState.Recording
+                    if (currentState != null) {
+                        videoNoteState = currentState.copy(isLocked = true)
+                    }
+                }
+                MessageComposerEvent.FinishVideoNoteRecording -> {
+                    finishVideoNoteRecording(cancelled = false)
+                }
+                MessageComposerEvent.CancelVideoNoteRecording -> {
+                    finishVideoNoteRecording(cancelled = true)
+                }
+                is MessageComposerEvent.VideoNoteRecordingCompleted -> {
+                    videoNoteState = VideoNoteState.Processing(event.uri)
+                    sessionCoroutineScope.launch {
+                        try {
+                            sendVideoNote(event.uri)
+                        } finally {
+                            resetVideoNoteState()
+                        }
+                    }
+                }
+                is MessageComposerEvent.VideoNoteRecordingFailed -> {
+                    Timber.e(event.throwable, "Failed to record video note")
+                    resetVideoNoteState()
+                    snackbarDispatcher.post(SnackbarMessage(sendAttachmentError(event.throwable)))
+                }
+                is MessageComposerEvent.LifecycleEvent -> {
+                    when (event.event) {
+                        androidx.lifecycle.Lifecycle.Event.ON_PAUSE,
+                        androidx.lifecycle.Lifecycle.Event.ON_DESTROY -> {
+                            if (videoNoteState is VideoNoteState.Recording || videoNoteState is VideoNoteState.RequestingPermissions) {
+                                resetVideoNoteState()
+                            }
+                        }
+                        else -> Unit
+                    }
+                }
             }
         }
 
@@ -401,8 +585,13 @@ class MessageComposerPresenter(
             isFullScreen = isFullScreen.value,
             mode = messageComposerContext.composerMode,
             showAttachmentSourcePicker = showAttachmentSourcePicker,
+            showStickerPicker = showStickerPicker,
+            isImportingStickerPack = isImportingStickerPack,
             showTextFormatting = showTextFormatting,
+            stickerPacks = stickerPacks.toImmutableList(),
             canShareLocation = canShareLocation.value,
+            recorderMode = recorderMode,
+            videoNoteState = videoNoteState,
             suggestions = suggestions.toImmutableList(),
             resolveMentionDisplay = resolveMentionDisplay,
             resolveAtRoomMentionDisplay = resolveAtRoomMentionDisplay,
@@ -622,6 +811,63 @@ class MessageComposerPresenter(
         messageComposerContext.composerMode = MessageComposerMode.Normal
     }
 
+    private suspend fun sendVideoNote(uri: Uri?) {
+        uri ?: return
+        val inReplyToEventId = (messageComposerContext.composerMode as? MessageComposerMode.Reply)?.eventId
+
+        // Video notes are sent immediately and do not go through the attachment preview/caption flow.
+        messageComposerContext.composerMode = MessageComposerMode.Normal
+        sendMedia(
+            uri = uri,
+            mimeType = MimeTypes.Mp4,
+            inReplyToEventId = inReplyToEventId,
+        )
+    }
+
+    private suspend fun sendSticker(
+        pack: StickerPackManifest,
+        sticker: StickerPackItem,
+    ) = runCatchingExceptions {
+        val body = buildStickerBody(pack, sticker)
+        val thumbnail = sticker.thumbnail
+        val content = buildJsonObject {
+            put("body", body)
+            put("url", sticker.source.url)
+            putJsonObject("info") {
+                put("mimetype", sticker.source.mimeType)
+                sticker.source.width?.let { put("w", it) }
+                sticker.source.height?.let { put("h", it) }
+                sticker.source.sizeBytes?.let { put("size", it) }
+                thumbnail?.url?.let { put("thumbnail_url", it) }
+                if (thumbnail != null) {
+                    putJsonObject("thumbnail_info") {
+                        put("mimetype", thumbnail.mimeType)
+                        thumbnail.width?.let { put("w", it) }
+                        thumbnail.height?.let { put("h", it) }
+                        thumbnail.sizeBytes?.let { put("size", it) }
+                    }
+                }
+            }
+        }.toString()
+        room.sendRaw(eventType = "m.sticker", content = content).getOrThrow()
+        messageComposerContext.composerMode = MessageComposerMode.Normal
+        analyticsService.capture(
+            Composer(
+                inThread = timelineController.mainTimelineMode() is io.element.android.libraries.matrix.api.timeline.Timeline.Mode.Thread,
+                isEditing = false,
+                isReply = false,
+                messageType = Composer.MessageType.Text,
+            )
+        )
+    }.onFailure { cause ->
+        Timber.e(cause, "Failed to send sticker")
+        if (cause is CancellationException) {
+            throw cause
+        } else {
+            snackbarDispatcher.post(SnackbarMessage(sendAttachmentError(cause)))
+        }
+    }
+
     private suspend fun sendMedia(
         uri: Uri,
         mimeType: String,
@@ -655,6 +901,19 @@ class MessageComposerPresenter(
             // TODO support threads in composer
             threadRoot = null,
         )
+    }
+
+    private fun buildStickerBody(
+        pack: StickerPackManifest,
+        sticker: StickerPackItem,
+    ): String {
+        return sticker.displayName
+            .ifBlank { pack.displayName }
+            .lineSequence()
+            .firstOrNull()
+            ?.trim()
+            .orEmpty()
+            .ifBlank { "sticker" }
     }
 
     private suspend fun applyDraft(

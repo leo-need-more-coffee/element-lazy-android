@@ -8,7 +8,10 @@
 
 package io.element.android.features.preferences.impl.advanced
 
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
+import io.element.android.compound.theme.AccentPresets
+import io.element.android.compound.theme.ChatBgPresets
 import io.element.android.libraries.architecture.AsyncAction
 import io.element.android.libraries.matrix.api.media.MediaPreviewValue
 import io.element.android.libraries.preferences.api.store.VideoCompressionPreset
@@ -36,6 +39,13 @@ fun aAdvancedSettingsState(
     isSharePresenceEnabled: Boolean = false,
     mediaOptimizationState: MediaOptimizationState = MediaOptimizationState.AllMedia(isEnabled = false),
     theme: ThemeOption = ThemeOption.System,
+    accentColor: Color = AccentPresets.default,
+    appBgColor: Color? = null,
+    fontSize: FontSizePreferenceOption = FontSizePreferenceOption.Normal,
+    chatBgColor: Color? = ChatBgPresets.Default,
+    outgoingBubbleColor: Color? = null,
+    incomingBubbleColor: Color? = null,
+    bubbleRadius: BubbleRadiusPreferenceOption = BubbleRadiusPreferenceOption.Standard,
     hideInviteAvatars: Boolean = false,
     timelineMediaPreviewValue: MediaPreviewValue = MediaPreviewValue.On,
     setTimelineMediaPreviewAction: AsyncAction<Unit> = AsyncAction.Uninitialized,
@@ -46,6 +56,13 @@ fun aAdvancedSettingsState(
     isSharePresenceEnabled = isSharePresenceEnabled,
     mediaOptimizationState = mediaOptimizationState,
     theme = theme,
+    accentColor = accentColor,
+    appBgColor = appBgColor,
+    fontSize = fontSize,
+    chatBgColor = chatBgColor,
+    outgoingBubbleColor = outgoingBubbleColor,
+    incomingBubbleColor = incomingBubbleColor,
+    bubbleRadius = bubbleRadius,
     mediaPreviewConfigState = MediaPreviewConfigState(
         hideInviteAvatars = hideInviteAvatars,
         timelineMediaPreviewValue = timelineMediaPreviewValue,

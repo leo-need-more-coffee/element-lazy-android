@@ -17,6 +17,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
@@ -74,6 +75,8 @@ object ElementTheme {
 // Global variables (application level)
 internal val LocalCompoundColors = staticCompositionLocalOf { compoundColorsLight }
 
+fun defaultCompoundMaterialTypography(): Typography = compoundTypography
+
 /**
  * Sets up the theme for the application, or a part of it.
  *
@@ -101,6 +104,7 @@ fun ElementTheme(
     materialColorsLight: ColorScheme = compoundLight.toMaterialColorScheme(),
     materialColorsDark: ColorScheme = compoundDark.toMaterialColorScheme(),
     typography: Typography = compoundTypography,
+    shapes: Shapes = Shapes(),
     content: @Composable () -> Unit,
 ) {
     val currentCompoundColor = when {
@@ -154,6 +158,7 @@ fun ElementTheme(
         MaterialTheme(
             colorScheme = colorScheme,
             typography = typography,
+            shapes = shapes,
             content = content
         )
     }

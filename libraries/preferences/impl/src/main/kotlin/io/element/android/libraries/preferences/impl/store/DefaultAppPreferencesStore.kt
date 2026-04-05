@@ -26,6 +26,13 @@ import kotlinx.coroutines.flow.map
 private val developerModeKey = booleanPreferencesKey("developerMode")
 private val customElementCallBaseUrlKey = stringPreferencesKey("elementCallBaseUrl")
 private val themeKey = stringPreferencesKey("theme")
+private val accentColorKey = stringPreferencesKey("accentColor")
+private val appBgColorKey = stringPreferencesKey("appBgColor")
+private val fontSizeKey = stringPreferencesKey("fontSize")
+private val chatBgColorKey = stringPreferencesKey("chatBgColor")
+private val outgoingBubbleColorKey = stringPreferencesKey("outgoingBubbleColor")
+private val incomingBubbleColorKey = stringPreferencesKey("incomingBubbleColor")
+private val bubbleRadiusKey = stringPreferencesKey("bubbleRadius")
 private val hideInviteAvatarsKey = booleanPreferencesKey("hideInviteAvatars")
 private val timelineMediaPreviewValueKey = stringPreferencesKey("timelineMediaPreviewValue")
 private val logLevelKey = stringPreferencesKey("logLevel")
@@ -77,6 +84,78 @@ class DefaultAppPreferencesStore(
         return store.data.map { prefs ->
             prefs[themeKey]
         }
+    }
+
+    override suspend fun setAccentColor(colorHex: String?) {
+        store.edit { prefs ->
+            if (colorHex != null) {
+                prefs[accentColorKey] = colorHex
+            } else {
+                prefs.remove(accentColorKey)
+            }
+        }
+    }
+
+    override fun getAccentColorFlow(): Flow<String?> {
+        return store.data.map { prefs ->
+            prefs[accentColorKey]
+        }
+    }
+
+    override suspend fun setAppBgColor(hex: String?) {
+        store.edit { prefs ->
+            if (hex != null) prefs[appBgColorKey] = hex else prefs.remove(appBgColorKey)
+        }
+    }
+
+    override fun getAppBgColorFlow(): Flow<String?> {
+        return store.data.map { prefs -> prefs[appBgColorKey] }
+    }
+
+    override suspend fun setFontSize(value: String) {
+        store.edit { prefs -> prefs[fontSizeKey] = value }
+    }
+
+    override fun getFontSizeFlow(): Flow<String?> {
+        return store.data.map { prefs -> prefs[fontSizeKey] }
+    }
+
+    override suspend fun setChatBgColor(hex: String?) {
+        store.edit { prefs ->
+            if (hex != null) prefs[chatBgColorKey] = hex else prefs.remove(chatBgColorKey)
+        }
+    }
+
+    override fun getChatBgColorFlow(): Flow<String?> {
+        return store.data.map { prefs -> prefs[chatBgColorKey] }
+    }
+
+    override suspend fun setOutgoingBubbleColor(hex: String?) {
+        store.edit { prefs ->
+            if (hex != null) prefs[outgoingBubbleColorKey] = hex else prefs.remove(outgoingBubbleColorKey)
+        }
+    }
+
+    override fun getOutgoingBubbleColorFlow(): Flow<String?> {
+        return store.data.map { prefs -> prefs[outgoingBubbleColorKey] }
+    }
+
+    override suspend fun setIncomingBubbleColor(hex: String?) {
+        store.edit { prefs ->
+            if (hex != null) prefs[incomingBubbleColorKey] = hex else prefs.remove(incomingBubbleColorKey)
+        }
+    }
+
+    override fun getIncomingBubbleColorFlow(): Flow<String?> {
+        return store.data.map { prefs -> prefs[incomingBubbleColorKey] }
+    }
+
+    override suspend fun setBubbleRadius(value: String) {
+        store.edit { prefs -> prefs[bubbleRadiusKey] = value }
+    }
+
+    override fun getBubbleRadiusFlow(): Flow<String?> {
+        return store.data.map { prefs -> prefs[bubbleRadiusKey] }
     }
 
     @Deprecated("Use MediaPreviewService instead. Kept only for migration.")

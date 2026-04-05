@@ -54,6 +54,8 @@ interface JoinedRoom : BaseRoom {
 
     suspend fun editMessage(eventId: EventId, body: String, htmlBody: String?, intentionalMentions: List<IntentionalMention>): Result<Unit>
 
+    suspend fun sendRaw(eventType: String, content: String): Result<Unit>
+
     /**
      * Send a typing notification.
      * @param isTyping True if the user is typing, false otherwise.

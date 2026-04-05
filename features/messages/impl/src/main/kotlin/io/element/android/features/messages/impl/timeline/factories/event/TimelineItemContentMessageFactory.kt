@@ -57,6 +57,7 @@ private const val MIN_IMAGE_SIZE = 1L
 private const val MAX_IMAGE_SIZE = 10_000L
 private const val MIN_ASPECT_RATIO = 0.001f
 private const val MAX_ASPECT_RATIO = 10f
+private const val MAX_STICKER_FILE_SIZE = 5_000_000L
 
 @Inject
 class TimelineItemContentMessageFactory(
@@ -120,8 +121,7 @@ class TimelineItemContentMessageFactory(
                 val dom = messageType.formattedCaption?.toHtmlDocument(permalinkParser = permalinkParser)
                 val formattedCaption = dom?.let(::parseHtml)
                     ?: messageType.caption?.withLinks()
-                val aspectRatio = aspectRatioOf(messageType.info?.width, messageType.info?.height)
-                TimelineItemStickerContent(
+                createStickerContent(
                     filename = messageType.filename,
                     fileSize = messageType.info?.size ?: 0,
                     caption = messageType.caption?.trimEnd(),
@@ -131,11 +131,8 @@ class TimelineItemContentMessageFactory(
                     thumbnailSource = messageType.info?.thumbnailSource,
                     mimeType = messageType.info?.mimetype ?: MimeTypes.OctetStream,
                     blurhash = messageType.info?.blurhash,
-                    width = messageType.info?.width?.toInt(),
-                    height = messageType.info?.height?.toInt(),
-                    aspectRatio = aspectRatio,
-                    formattedFileSize = fileSizeFormatter.format(messageType.info?.size ?: 0),
-                    fileExtension = fileExtensionExtractor.extractFromName(messageType.filename)
+                    width = messageType.info?.width,
+                    height = messageType.info?.height,
                 )
             }
             is LocationMessageType -> {
@@ -164,7 +161,32 @@ class TimelineItemContentMessageFactory(
                 val dom = messageType.formattedCaption?.toHtmlDocument(permalinkParser = permalinkParser)
                 val formattedCaption = dom?.let(::parseHtml)
                     ?: messageType.caption?.withLinks()
-                val aspectRatio = aspectRatioOf(messageType.info?.width, messageType.info?.height)
+                val isVideoNote = messageType.filename.startsWith("video_note_")
+                val mimeType = messageType.info?.mimetype ?: MimeTypes.OctetStream
+                val fileExtension = fileExtensionExtractor.extractFromName(messageType.filename)
+                if (!isVideoNote && isLikelyStickerAsset(
+                        filename = messageType.filename,
+                        caption = messageType.caption,
+                        mimeType = mimeType,
+                        fileExtension = fileExtension,
+                        fileSize = messageType.info?.size,
+                    )
+                ) {
+                    return createStickerContent(
+                        filename = messageType.filename,
+                        fileSize = messageType.info?.size ?: 0,
+                        caption = messageType.caption?.trimEnd(),
+                        formattedCaption = formattedCaption,
+                        isEdited = content.isEdited,
+                        mediaSource = messageType.source,
+                        thumbnailSource = messageType.info?.thumbnailSource,
+                        mimeType = mimeType,
+                        blurhash = messageType.info?.blurhash,
+                        width = messageType.info?.width ?: messageType.info?.thumbnailInfo?.width,
+                        height = messageType.info?.height ?: messageType.info?.thumbnailInfo?.height,
+                    )
+                }
+                val aspectRatio = if (isVideoNote) 1.0f else aspectRatioOf(messageType.info?.width, messageType.info?.height)
                 TimelineItemVideoContent(
                     filename = messageType.filename,
                     fileSize = messageType.info?.size ?: 0,
@@ -173,7 +195,7 @@ class TimelineItemContentMessageFactory(
                     isEdited = content.isEdited,
                     thumbnailSource = messageType.info?.thumbnailSource,
                     mediaSource = messageType.source,
-                    mimeType = messageType.info?.mimetype ?: MimeTypes.OctetStream,
+                    mimeType = mimeType,
                     width = messageType.info?.width?.toInt(),
                     height = messageType.info?.height?.toInt(),
                     thumbnailWidth = messageType.info?.thumbnailInfo?.width?.toInt(),
@@ -182,7 +204,7 @@ class TimelineItemContentMessageFactory(
                     blurHash = messageType.info?.blurhash,
                     aspectRatio = aspectRatio,
                     formattedFileSize = fileSizeFormatter.format(messageType.info?.size ?: 0),
-                    fileExtension = fileExtensionExtractor.extractFromName(messageType.filename),
+                    fileExtension = fileExtension,
                 )
             }
             is AudioMessageType -> {
@@ -226,6 +248,29 @@ class TimelineItemContentMessageFactory(
                 val formattedCaption = dom?.let(::parseHtml)
                     ?: messageType.caption?.withLinks()
                 val fileExtension = fileExtensionExtractor.extractFromName(messageType.filename)
+                val mimeType = messageType.info?.mimetype ?: MimeTypes.fromFileExtension(fileExtension)
+                if (isLikelyStickerAsset(
+                        filename = messageType.filename,
+                        caption = messageType.caption,
+                        mimeType = mimeType,
+                        fileExtension = fileExtension,
+                        fileSize = messageType.info?.size,
+                    )
+                ) {
+                    return createStickerContent(
+                        filename = messageType.filename,
+                        fileSize = messageType.info?.size ?: 0,
+                        caption = messageType.caption?.trimEnd(),
+                        formattedCaption = formattedCaption,
+                        isEdited = content.isEdited,
+                        mediaSource = messageType.source,
+                        thumbnailSource = messageType.info?.thumbnailSource,
+                        mimeType = mimeType,
+                        blurhash = null,
+                        width = messageType.info?.thumbnailInfo?.width,
+                        height = messageType.info?.thumbnailInfo?.height,
+                    )
+                }
                 TimelineItemFileContent(
                     filename = messageType.filename,
                     fileSize = messageType.info?.size ?: 0,
@@ -234,7 +279,7 @@ class TimelineItemContentMessageFactory(
                     isEdited = content.isEdited,
                     thumbnailSource = messageType.info?.thumbnailSource,
                     mediaSource = messageType.source,
-                    mimeType = messageType.info?.mimetype ?: MimeTypes.fromFileExtension(fileExtension),
+                    mimeType = mimeType,
                     formattedFileSize = fileSizeFormatter.format(messageType.info?.size ?: 0),
                     fileExtension = fileExtension
                 )
@@ -285,6 +330,54 @@ class TimelineItemContentMessageFactory(
         }
 
         return result?.takeIf { it.isFinite() }
+    }
+
+    private fun isLikelyStickerAsset(
+        filename: String,
+        caption: String?,
+        mimeType: String,
+        fileExtension: String,
+        fileSize: Long?,
+    ): Boolean {
+        val isWebm = mimeType.equals("video/webm", ignoreCase = true) || fileExtension.equals("webm", ignoreCase = true)
+        if (!isWebm) return false
+        val normalizedCaption = caption?.trim()?.takeIf { it.isNotEmpty() }
+        val isCaptionLikeFilename = normalizedCaption == null || normalizedCaption == filename
+        return isCaptionLikeFilename || (fileSize != null && fileSize <= MAX_STICKER_FILE_SIZE)
+    }
+
+    private fun createStickerContent(
+        filename: String,
+        fileSize: Long,
+        caption: String?,
+        formattedCaption: CharSequence?,
+        isEdited: Boolean,
+        mediaSource: io.element.android.libraries.matrix.api.media.MediaSource,
+        thumbnailSource: io.element.android.libraries.matrix.api.media.MediaSource?,
+        mimeType: String,
+        blurhash: String?,
+        width: Long?,
+        height: Long?,
+    ): TimelineItemStickerContent {
+        val safeWidth = width?.coerceIn(MIN_IMAGE_SIZE, MAX_IMAGE_SIZE)
+        val safeHeight = height?.coerceIn(MIN_IMAGE_SIZE, MAX_IMAGE_SIZE)
+        val aspectRatio = aspectRatioOf(safeWidth, safeHeight)?.coerceIn(MIN_ASPECT_RATIO, MAX_ASPECT_RATIO)
+        return TimelineItemStickerContent(
+            filename = filename,
+            fileSize = fileSize,
+            caption = caption,
+            formattedCaption = formattedCaption,
+            isEdited = isEdited,
+            mediaSource = mediaSource,
+            thumbnailSource = thumbnailSource,
+            mimeType = mimeType,
+            blurhash = blurhash,
+            width = safeWidth?.toInt(),
+            height = safeHeight?.toInt(),
+            aspectRatio = aspectRatio,
+            formattedFileSize = fileSizeFormatter.format(fileSize),
+            fileExtension = fileExtensionExtractor.extractFromName(filename)
+        )
     }
 
     private fun parseHtml(document: Document): CharSequence? {

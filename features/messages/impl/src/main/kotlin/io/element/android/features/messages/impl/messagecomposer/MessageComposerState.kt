@@ -10,8 +10,10 @@ package io.element.android.features.messages.impl.messagecomposer
 
 import androidx.compose.runtime.Stable
 import io.element.android.libraries.architecture.AsyncAction
+import io.element.android.libraries.matrix.api.stickers.StickerPackManifest
 import io.element.android.libraries.textcomposer.mentions.ResolvedSuggestion
 import io.element.android.libraries.textcomposer.model.MessageComposerMode
+import io.element.android.libraries.textcomposer.model.MessageComposerRecorderMode
 import io.element.android.libraries.textcomposer.model.TextEditorState
 import io.element.android.wysiwyg.display.TextDisplay
 import kotlinx.collections.immutable.ImmutableList
@@ -22,8 +24,13 @@ data class MessageComposerState(
     val isFullScreen: Boolean,
     val mode: MessageComposerMode,
     val showAttachmentSourcePicker: Boolean,
+    val showStickerPicker: Boolean,
+    val isImportingStickerPack: Boolean,
     val showTextFormatting: Boolean,
+    val stickerPacks: ImmutableList<StickerPackManifest>,
     val canShareLocation: Boolean,
+    val recorderMode: MessageComposerRecorderMode,
+    val videoNoteState: VideoNoteState,
     val suggestions: ImmutableList<ResolvedSuggestion>,
     val resolveMentionDisplay: (String, String) -> TextDisplay,
     val resolveAtRoomMentionDisplay: () -> TextDisplay,

@@ -44,7 +44,7 @@ interface TimelineItemPresenterFactoriesModule {
 class TimelineItemPresenterFactories(
     private val factories: @JvmSuppressWildcards Map<KClass<out TimelineItemEventContent>, TimelineItemPresenterFactory<*, *>>,
 ) {
-    private val presenters: MutableMap<TimelineItemEventContent, Presenter<*>> = mutableMapOf()
+    private val presenters: MutableMap<PresenterCacheKey, Presenter<*>> = mutableMapOf()
 
     /**
      * Creates and caches a presenter for the given content.
@@ -61,18 +61,28 @@ class TimelineItemPresenterFactories(
     fun <C : TimelineItemEventContent, S : Any> rememberPresenter(
         content: C,
         contentClass: KClass<C>,
-    ): Presenter<S> = remember(content) {
-        presenters[content]?.let {
+        presenterKey: Any = content,
+    ): Presenter<S> = remember(presenterKey) {
+        val cacheKey = PresenterCacheKey(
+            contentClass = contentClass,
+            presenterKey = presenterKey,
+        )
+        presenters[cacheKey]?.let {
             @Suppress("UNCHECKED_CAST")
             it as Presenter<S>
         } ?: factories.getValue(contentClass).let {
             @Suppress("UNCHECKED_CAST")
             (it as TimelineItemPresenterFactory<C, S>).create(content).apply {
-                presenters[content] = this
+                presenters[cacheKey] = this
             }
         }
     }
 }
+
+private data class PresenterCacheKey(
+    val contentClass: KClass<out TimelineItemEventContent>,
+    val presenterKey: Any,
+)
 
 /**
  * Creates and caches a presenter for the given content.
@@ -86,8 +96,10 @@ class TimelineItemPresenterFactories(
  */
 @Composable
 inline fun <reified C : TimelineItemEventContent, S : Any> TimelineItemPresenterFactories.rememberPresenter(
-    content: C
+    content: C,
+    presenterKey: Any = content,
 ): Presenter<S> = rememberPresenter(
     content = content,
-    contentClass = C::class
+    contentClass = C::class,
+    presenterKey = presenterKey,
 )

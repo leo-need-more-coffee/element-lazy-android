@@ -98,6 +98,7 @@ androidx_constraintlayout_compose = { module = "androidx.constraintlayout:constr
 androidx_camera_lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "camera" }
 androidx_camera_view = { module = "androidx.camera:camera-view", version.ref = "camera" }
 androidx_camera_camera2 = { module = "androidx.camera:camera-camera2", version.ref = "camera" }
+androidx_camera_video = { module = "androidx.camera:camera-video", version.ref = "camera" }
 androidx_javascriptengine = "androidx.javascriptengine:javascriptengine:1.0.0"
 androidx_workmanager_runtime = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
 
@@ -185,6 +186,7 @@ coil = { module = "io.coil-kt.coil3:coil", version.ref = "coil" }
 coil_network_okhttp = { module = "io.coil-kt.coil3:coil-network-okhttp", version.ref = "coil" }
 coil_compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
 coil_gif = { module = "io.coil-kt.coil3:coil-gif", version.ref = "coil" }
+coil_video = { module = "io.coil-kt.coil3:coil-video", version.ref = "coil" }
 coil_test = { module = "io.coil-kt.coil3:coil-test", version.ref = "coil" }
 datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "datetime" }
 serialization_json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization_json" }

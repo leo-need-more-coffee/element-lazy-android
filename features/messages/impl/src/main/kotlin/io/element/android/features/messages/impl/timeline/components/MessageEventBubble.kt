@@ -30,8 +30,10 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.layer.CompositingStrategy
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.theme.ElementTheme
+import io.element.android.compound.theme.LocalBubbleRadius
 import io.element.android.features.messages.impl.timeline.model.TimelineItemGroupPosition
 import io.element.android.features.messages.impl.timeline.model.bubble.BubbleState
 import io.element.android.features.messages.impl.timeline.model.bubble.BubbleStateProvider
@@ -50,7 +52,6 @@ import io.element.android.libraries.testtags.testTag
 import io.element.android.libraries.ui.utils.graphics.drawInLayer
 import io.element.android.libraries.ui.utils.time.isTalkbackActive
 
-private val BUBBLE_RADIUS = 12.dp
 private val avatarRadius = AvatarSize.TimelineSender.dp / 2
 
 private val MIN_BUBBLE_WIDTH = 80.dp
@@ -61,6 +62,7 @@ fun MessageEventBubble(
     interactionSource: MutableInteractionSource,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
+    drawBubble: Boolean = true,
     modifier: Modifier = Modifier,
     content: @Composable BoxScope.() -> Unit = {},
 ) {
@@ -80,44 +82,50 @@ fun MessageEventBubble(
     val cutTopStart = state.cutTopStart
     // Ignore state.isHighlighted for now, we need a design decision on it.
     val backgroundBubbleColor = MessageEventBubbleDefaults.backgroundBubbleColor(state.isMine)
-    val bubbleShape = remember(state) { MessageEventBubbleDefaults.shape(state.cutTopStart, state.groupPosition, state.isMine) }
+    val bubbleRadius = LocalBubbleRadius.current
+    val bubbleShape = remember(state, bubbleRadius) { MessageEventBubbleDefaults.shape(bubbleRadius, state.cutTopStart, state.groupPosition, state.isMine) }
     val radiusPx = (avatarRadius + SENDER_AVATAR_BORDER_WIDTH).toPx()
     val yOffsetPx = -(NEGATIVE_MARGIN_FOR_BUBBLE + avatarRadius).toPx()
-    BoxWithConstraints(
-        modifier = modifier
-            .drawWithCache {
-                // Calculate the outline of the background and cache it
-                val outline = bubbleShape.createOutline(size, layoutDirection, this)
+    val bubbleModifier = if (drawBubble) {
+        modifier.drawWithCache {
+            // Calculate the outline of the background and cache it
+            val outline = bubbleShape.createOutline(size, layoutDirection, this)
 
-                onDrawWithContent {
-                    // Draw the contents in a layer to be able to clip them with the same outline
-                    // For some reason, doing this clipping outside a layer messes up with the touch events
-                    drawInLayer(
-                        composingStrategy = CompositingStrategy.Offscreen,
-                        outline = outline,
-                        clip = true,
-                    ) {
-                        // Draw the background first, so that it's behind the content
-                        drawRect(backgroundBubbleColor)
+            onDrawWithContent {
+                // Draw the contents in a layer to be able to clip them with the same outline
+                // For some reason, doing this clipping outside a layer messes up with the touch events
+                drawInLayer(
+                    composingStrategy = CompositingStrategy.Offscreen,
+                    outline = outline,
+                    clip = true,
+                ) {
+                    // Draw the background first, so that it's behind the content
+                    drawRect(backgroundBubbleColor)
 
-                        // Then draw the content on top of it
-                        drawContent()
+                    // Then draw the content on top of it
+                    drawContent()
 
-                        // And then clip the top start corner if needed to make room for the avatar
-                        if (cutTopStart) {
-                            drawCircle(
-                                color = Color.Black,
-                                center = Offset(
-                                    x = if (layoutDirection == LayoutDirection.Rtl) size.width else 0f,
-                                    y = yOffsetPx,
-                                ),
-                                radius = radiusPx,
-                                blendMode = BlendMode.Clear,
-                            )
-                        }
+                    // And then clip the top start corner if needed to make room for the avatar
+                    if (cutTopStart) {
+                        drawCircle(
+                            color = Color.Black,
+                            center = Offset(
+                                x = if (layoutDirection == LayoutDirection.Rtl) size.width else 0f,
+                                y = yOffsetPx,
+                            ),
+                            radius = radiusPx,
+                            blendMode = BlendMode.Clear,
+                        )
                     }
                 }
-            },
+            }
+        }
+    } else {
+        modifier
+    }
+
+    BoxWithConstraints(
+        modifier = bubbleModifier,
         // Need to set the contentAlignment again (it's already set in TimelineItemEventRow), for the case
         // when content width is low.
         contentAlignment = if (state.isMine) Alignment.CenterEnd else Alignment.CenterStart
@@ -138,30 +146,30 @@ fun MessageEventBubble(
 }
 
 object MessageEventBubbleDefaults {
-    fun shape(cutTopStart: Boolean, groupPosition: TimelineItemGroupPosition, isMine: Boolean): Shape {
-        val topLeftCorner = if (cutTopStart) 0.dp else BUBBLE_RADIUS
+    fun shape(bubbleRadius: Dp, cutTopStart: Boolean, groupPosition: TimelineItemGroupPosition, isMine: Boolean): Shape {
+        val topLeftCorner = if (cutTopStart) 0.dp else bubbleRadius
         return when (groupPosition) {
             TimelineItemGroupPosition.First -> if (isMine) {
-                RoundedCornerShape(BUBBLE_RADIUS, BUBBLE_RADIUS, 0.dp, BUBBLE_RADIUS)
+                RoundedCornerShape(bubbleRadius, bubbleRadius, 0.dp, bubbleRadius)
             } else {
-                RoundedCornerShape(topLeftCorner, BUBBLE_RADIUS, BUBBLE_RADIUS, 0.dp)
+                RoundedCornerShape(topLeftCorner, bubbleRadius, bubbleRadius, 0.dp)
             }
             TimelineItemGroupPosition.Middle -> if (isMine) {
-                RoundedCornerShape(BUBBLE_RADIUS, 0.dp, 0.dp, BUBBLE_RADIUS)
+                RoundedCornerShape(bubbleRadius, 0.dp, 0.dp, bubbleRadius)
             } else {
-                RoundedCornerShape(0.dp, BUBBLE_RADIUS, BUBBLE_RADIUS, 0.dp)
+                RoundedCornerShape(0.dp, bubbleRadius, bubbleRadius, 0.dp)
             }
             TimelineItemGroupPosition.Last -> if (isMine) {
-                RoundedCornerShape(BUBBLE_RADIUS, 0.dp, BUBBLE_RADIUS, BUBBLE_RADIUS)
+                RoundedCornerShape(bubbleRadius, 0.dp, bubbleRadius, bubbleRadius)
             } else {
-                RoundedCornerShape(0.dp, BUBBLE_RADIUS, BUBBLE_RADIUS, BUBBLE_RADIUS)
+                RoundedCornerShape(0.dp, bubbleRadius, bubbleRadius, bubbleRadius)
             }
             TimelineItemGroupPosition.None ->
                 RoundedCornerShape(
                     topLeftCorner,
-                    BUBBLE_RADIUS,
-                    BUBBLE_RADIUS,
-                    BUBBLE_RADIUS
+                    bubbleRadius,
+                    bubbleRadius,
+                    bubbleRadius
                 )
         }
     }

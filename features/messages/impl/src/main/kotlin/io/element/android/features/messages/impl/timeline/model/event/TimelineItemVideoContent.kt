@@ -33,4 +33,5 @@ data class TimelineItemVideoContent(
     override val type: String = "TimelineItemImageContent"
 
     val showCaption = caption != null
+    val isVideoNote = filename.startsWith("video_note_")
 }

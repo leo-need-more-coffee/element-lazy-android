@@ -23,6 +23,7 @@ import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedInject
 import io.element.android.annotations.ContributesNode
 import io.element.android.features.messages.impl.actionlist.ActionListPresenter
+import io.element.android.features.messages.impl.timeline.di.LocalMatrixMediaLoader
 import io.element.android.features.messages.impl.timeline.di.LocalTimelineItemPresenterFactories
 import io.element.android.features.messages.impl.timeline.di.TimelineItemPresenterFactories
 import io.element.android.features.messages.impl.timeline.model.TimelineItem
@@ -46,6 +47,7 @@ class PinnedMessagesListNode(
     presenterFactory: PinnedMessagesListPresenter.Factory,
     actionListPresenterFactory: ActionListPresenter.Factory,
     private val timelineItemPresenterFactories: TimelineItemPresenterFactories,
+    private val matrixMediaLoader: io.element.android.libraries.matrix.api.media.MatrixMediaLoader,
     private val permalinkParser: PermalinkParser,
 ) : Node(buildContext, plugins = plugins), PinnedMessagesListNavigator {
     interface Callback : Plugin {
@@ -99,6 +101,7 @@ class PinnedMessagesListNode(
     override fun View(modifier: Modifier) {
         CompositionLocalProvider(
             LocalTimelineItemPresenterFactories provides timelineItemPresenterFactories,
+            LocalMatrixMediaLoader provides matrixMediaLoader,
         ) {
             val context = LocalContext.current
             val toastMessage = stringResource(CommonStrings.common_copied_to_clipboard)

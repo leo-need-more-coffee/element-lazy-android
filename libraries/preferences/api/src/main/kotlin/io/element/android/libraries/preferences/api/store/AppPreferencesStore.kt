@@ -23,6 +23,27 @@ interface AppPreferencesStore {
     suspend fun setTheme(theme: String)
     fun getThemeFlow(): Flow<String?>
 
+    suspend fun setAccentColor(colorHex: String?)
+    fun getAccentColorFlow(): Flow<String?>
+
+    suspend fun setAppBgColor(hex: String?)
+    fun getAppBgColorFlow(): Flow<String?>
+
+    suspend fun setFontSize(value: String)
+    fun getFontSizeFlow(): Flow<String?>
+
+    suspend fun setChatBgColor(hex: String?)
+    fun getChatBgColorFlow(): Flow<String?>
+
+    suspend fun setOutgoingBubbleColor(hex: String?)
+    fun getOutgoingBubbleColorFlow(): Flow<String?>
+
+    suspend fun setIncomingBubbleColor(hex: String?)
+    fun getIncomingBubbleColorFlow(): Flow<String?>
+
+    suspend fun setBubbleRadius(value: String)
+    fun getBubbleRadiusFlow(): Flow<String?>
+
     @Deprecated("Use MediaPreviewService instead. Kept only for migration.")
     suspend fun setHideInviteAvatars(hide: Boolean?)
     @Deprecated("Use MediaPreviewService instead. Kept only for migration.")

@@ -26,6 +26,7 @@ import io.element.android.libraries.designsystem.components.async.AsyncActionVie
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
 import io.element.android.libraries.textcomposer.TextComposer
+import io.element.android.libraries.textcomposer.model.MessageComposerRecorderMode
 import io.element.android.libraries.textcomposer.model.Suggestion
 import io.element.android.libraries.textcomposer.model.VoiceMessagePlayerEvent
 import io.element.android.libraries.textcomposer.model.VoiceMessageRecorderEvent
@@ -48,6 +49,10 @@ internal fun MessageComposerView(
 
     fun onAddAttachment() {
         state.eventSink(MessageComposerEvent.AddAttachment)
+    }
+
+    fun onOpenStickerPicker() {
+        state.eventSink(MessageComposerEvent.ShowStickerPicker)
     }
 
     fun onCloseSpecialMode() {
@@ -94,10 +99,20 @@ internal fun MessageComposerView(
         voiceMessageState.eventSink(VoiceMessageComposerEvent.PlayerEvent(event))
     }
 
+    val onRecorderModeToggle = {
+        val nextMode = when (state.recorderMode) {
+            MessageComposerRecorderMode.Audio -> MessageComposerRecorderMode.Video
+            MessageComposerRecorderMode.Video -> MessageComposerRecorderMode.Audio
+        }
+        state.eventSink(MessageComposerEvent.SetRecorderMode(nextMode))
+    }
+
     TextComposer(
         modifier = modifier,
         state = state.textEditorState,
         voiceMessageState = voiceMessageState.voiceMessageState,
+        recorderMode = state.recorderMode,
+        isVideoNoteRecording = state.videoNoteState is VideoNoteState.Recording,
         onRequestFocus = ::onRequestFocus,
         onSendMessage = ::sendMessage,
         composerMode = state.mode,
@@ -109,6 +124,12 @@ internal fun MessageComposerView(
         onVoicePlayerEvent = onVoicePlayerEvent,
         onSendVoiceMessage = onSendVoiceMessage,
         onDeleteVoiceMessage = onDeleteVoiceMessage,
+        onToggleRecorderMode = onRecorderModeToggle,
+        onOpenStickerPicker = ::onOpenStickerPicker,
+        onStartVideoRecording = { state.eventSink(MessageComposerEvent.StartVideoNoteRecording) },
+        onFinishVideoRecording = { state.eventSink(MessageComposerEvent.FinishVideoNoteRecording) },
+        onCancelVideoRecording = { state.eventSink(MessageComposerEvent.CancelVideoNoteRecording) },
+        onLockVideoRecording = { state.eventSink(MessageComposerEvent.LockVideoNoteRecording) },
         onReceiveSuggestion = ::onSuggestionReceived,
         resolveMentionDisplay = state.resolveMentionDisplay,
         resolveAtRoomMentionDisplay = state.resolveAtRoomMentionDisplay,

@@ -21,12 +21,26 @@ class InMemoryAppPreferencesStore(
     hideInviteAvatars: Boolean? = null,
     timelineMediaPreviewValue: MediaPreviewValue? = null,
     theme: String? = null,
+    accentColor: String? = null,
+    appBgColor: String? = null,
+    fontSize: String? = null,
+    chatBgColor: String? = null,
+    outgoingBubbleColor: String? = null,
+    incomingBubbleColor: String? = null,
+    bubbleRadius: String? = null,
     logLevel: LogLevel = LogLevel.INFO,
     traceLockPacks: Set<TraceLogPack> = emptySet(),
 ) : AppPreferencesStore {
     private val isDeveloperModeEnabled = MutableStateFlow(isDeveloperModeEnabled)
     private val customElementCallBaseUrl = MutableStateFlow(customElementCallBaseUrl)
     private val theme = MutableStateFlow(theme)
+    private val accentColor = MutableStateFlow(accentColor)
+    private val appBgColor = MutableStateFlow(appBgColor)
+    private val fontSize = MutableStateFlow(fontSize)
+    private val chatBgColor = MutableStateFlow(chatBgColor)
+    private val outgoingBubbleColor = MutableStateFlow(outgoingBubbleColor)
+    private val incomingBubbleColor = MutableStateFlow(incomingBubbleColor)
+    private val bubbleRadius = MutableStateFlow(bubbleRadius)
     private val logLevel = MutableStateFlow(logLevel)
     private val tracingLogPacks = MutableStateFlow(traceLockPacks)
     private val hideInviteAvatars = MutableStateFlow(hideInviteAvatars)
@@ -54,6 +68,62 @@ class InMemoryAppPreferencesStore(
 
     override fun getThemeFlow(): Flow<String?> {
         return theme
+    }
+
+    override suspend fun setAccentColor(colorHex: String?) {
+        accentColor.value = colorHex
+    }
+
+    override fun getAccentColorFlow(): Flow<String?> {
+        return accentColor
+    }
+
+    override suspend fun setAppBgColor(hex: String?) {
+        appBgColor.value = hex
+    }
+
+    override fun getAppBgColorFlow(): Flow<String?> {
+        return appBgColor
+    }
+
+    override suspend fun setFontSize(value: String) {
+        fontSize.value = value
+    }
+
+    override fun getFontSizeFlow(): Flow<String?> {
+        return fontSize
+    }
+
+    override suspend fun setChatBgColor(hex: String?) {
+        chatBgColor.value = hex
+    }
+
+    override fun getChatBgColorFlow(): Flow<String?> {
+        return chatBgColor
+    }
+
+    override suspend fun setOutgoingBubbleColor(hex: String?) {
+        outgoingBubbleColor.value = hex
+    }
+
+    override fun getOutgoingBubbleColorFlow(): Flow<String?> {
+        return outgoingBubbleColor
+    }
+
+    override suspend fun setIncomingBubbleColor(hex: String?) {
+        incomingBubbleColor.value = hex
+    }
+
+    override fun getIncomingBubbleColorFlow(): Flow<String?> {
+        return incomingBubbleColor
+    }
+
+    override suspend fun setBubbleRadius(value: String) {
+        bubbleRadius.value = value
+    }
+
+    override fun getBubbleRadiusFlow(): Flow<String?> {
+        return bubbleRadius
     }
 
     @Deprecated("Use MediaPreviewService instead. Kept only for migration.")

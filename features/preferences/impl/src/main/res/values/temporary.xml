@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+  ~ Copyright (c) 2026 Element Creations Ltd.
+  ~
+  ~ SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
+  ~ Please see LICENSE files in the repository root for full details.
+  -->
+<resources>
+    <string name="screen_advanced_settings_accent_color_title">Accent colour</string>
+    <string name="screen_advanced_settings_app_bg_title">App background</string>
+    <string name="screen_advanced_settings_font_size_title">Message text size</string>
+    <string name="screen_advanced_settings_font_size_small">Small</string>
+    <string name="screen_advanced_settings_font_size_normal">Normal</string>
+    <string name="screen_advanced_settings_font_size_large">Large</string>
+    <string name="screen_advanced_settings_chat_bg_title">Chat background</string>
+    <string name="screen_advanced_settings_outgoing_bubble_color_title">Outgoing message colour</string>
+    <string name="screen_advanced_settings_incoming_bubble_color_title">Incoming message colour</string>
+    <string name="screen_advanced_settings_chat_bg_default">Default</string>
+    <string name="screen_advanced_settings_color_picker_open">Pick colour</string>
+    <string name="screen_advanced_settings_color_picker_reset">Use default</string>
+    <string name="screen_advanced_settings_theme_preview_title">Theme preview</string>
+    <string name="screen_advanced_settings_theme_preview_subtitle">See how bubbles, text and accent look together.</string>
+    <string name="screen_advanced_settings_theme_preview_incoming">You can now tune incoming and outgoing bubbles separately.</string>
+    <string name="screen_advanced_settings_theme_preview_outgoing">Accent, background and text size update here.</string>
+    <string name="screen_advanced_settings_theme_preview_composer">Message</string>
+    <string name="screen_advanced_settings_bubble_radius_title">Bubble shape</string>
+    <string name="screen_advanced_settings_bubble_radius_sharp">Sharp</string>
+    <string name="screen_advanced_settings_bubble_radius_standard">Standard</string>
+    <string name="screen_advanced_settings_bubble_radius_round">Round</string>
+    <string name="screen_advanced_settings_appearance_section">Appearance</string>
+</resources>

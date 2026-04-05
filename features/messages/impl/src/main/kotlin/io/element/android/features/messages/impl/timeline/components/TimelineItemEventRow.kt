@@ -162,6 +162,7 @@ fun TimelineItemEventRow(
 
         TimelineItemEventContentView(
             content = event.content,
+            presenterKey = event.eventOrTransactionId,
             hideMediaContent = timelineProtectionState.hideMediaContent(event.eventId),
             onContentClick = onContentClick,
             onLongClick = onLongClick,
@@ -459,6 +460,9 @@ private fun TimelineItemEventRowContent(
             isMine = event.isMine,
             timelineRoomInfo = timelineRoomInfo,
         )
+        val drawMessageBubble = (event.content as? TimelineItemVideoContent)?.isVideoNote != true &&
+            event.content !is TimelineItemStickerContent
+        CompositionLocalProvider(LocalTimelineItemSendState provides event.localSendState) {
         MessageEventBubble(
             modifier = Modifier
                 .constrainAs(message) {
@@ -476,6 +480,7 @@ private fun TimelineItemEventRowContent(
                     }
                 },
             state = bubbleState,
+            drawBubble = drawMessageBubble,
             interactionSource = interactionSource,
             onClick = onContentClick,
             onLongClick = onLongClick,
@@ -490,6 +495,7 @@ private fun TimelineItemEventRowContent(
                 eventContentView = eventContentView,
             )
         }
+        } // CompositionLocalProvider
 
         // Pin icon
         val isEventPinned = timelineRoomInfo.pinnedEventIds.contains(event.eventId)
@@ -774,7 +780,11 @@ private fun MessageEventBubbleContent(
 
     val timestampPosition = when (event.content) {
         is TimelineItemImageContent -> if (event.content.showCaption) TimestampPosition.Aligned else TimestampPosition.Overlay
-        is TimelineItemVideoContent -> if (event.content.showCaption) TimestampPosition.Aligned else TimestampPosition.Overlay
+        is TimelineItemVideoContent -> when {
+            event.content.isVideoNote -> TimestampPosition.Below
+            event.content.showCaption -> TimestampPosition.Aligned
+            else -> TimestampPosition.Overlay
+        }
         is TimelineItemStickerContent,
         is TimelineItemLocationContent -> TimestampPosition.Overlay
         is TimelineItemPollContent -> TimestampPosition.Below

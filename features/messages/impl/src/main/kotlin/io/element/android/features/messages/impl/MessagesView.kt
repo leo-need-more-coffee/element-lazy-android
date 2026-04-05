@@ -8,9 +8,16 @@
 
 package io.element.android.features.messages.impl
 
+import android.Manifest
+import android.graphics.Bitmap
+import android.media.MediaMetadataRetriever
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,21 +31,30 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
@@ -51,7 +67,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.CircleShape
 import io.element.android.compound.theme.ElementTheme
+import io.element.android.compound.theme.LocalChatBgColor
 import io.element.android.features.messages.api.timeline.voicemessages.composer.VoiceMessageComposerEvent
 import io.element.android.features.messages.impl.actionlist.ActionListEvent
 import io.element.android.features.messages.impl.actionlist.ActionListView
@@ -63,6 +81,8 @@ import io.element.android.features.messages.impl.messagecomposer.AttachmentsBott
 import io.element.android.features.messages.impl.messagecomposer.DisabledComposerView
 import io.element.android.features.messages.impl.messagecomposer.MessageComposerEvent
 import io.element.android.features.messages.impl.messagecomposer.MessageComposerView
+import io.element.android.features.messages.impl.messagecomposer.VideoNoteRecorderView
+import io.element.android.features.messages.impl.messagecomposer.VideoNoteState
 import io.element.android.features.messages.impl.messagecomposer.suggestions.SuggestionsPickerView
 import io.element.android.features.messages.impl.pinned.banner.PinnedMessagesBannerState
 import io.element.android.features.messages.impl.pinned.banner.PinnedMessagesBannerView
@@ -118,6 +138,8 @@ import io.element.android.libraries.textcomposer.model.TextEditorState
 import io.element.android.libraries.ui.strings.CommonStrings
 import io.element.android.wysiwyg.link.Link
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import timber.log.Timber
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -137,15 +159,32 @@ fun MessagesView(
     forceJumpToBottomVisibility: Boolean = false,
     knockRequestsBannerView: @Composable () -> Unit,
 ) {
+    val chatBackgroundColor = LocalChatBgColor.current ?: ElementTheme.colors.bgCanvasDefault
+
     OnLifecycleEvent { _, event ->
         state.voiceMessageComposerState.eventSink(VoiceMessageComposerEvent.LifecycleEvent(event))
+        state.composerState.eventSink(MessageComposerEvent.LifecycleEvent(event))
     }
 
-    KeepScreenOn(state.voiceMessageComposerState.keepScreenOn)
+    KeepScreenOn(state.voiceMessageComposerState.keepScreenOn || state.composerState.videoNoteState is VideoNoteState.Recording)
 
     HideKeyboardWhenDisposed()
 
     val snackbarHostState = rememberSnackbarHostState(snackbarMessage = state.snackbarMessage)
+    val videoNotePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions(),
+    ) { result ->
+        val granted = result[Manifest.permission.CAMERA] == true && result[Manifest.permission.RECORD_AUDIO] == true
+        state.composerState.eventSink(
+            if (granted) MessageComposerEvent.VideoNotePermissionsGranted else MessageComposerEvent.CancelVideoNoteRecording
+        )
+    }
+
+    LaunchedEffect(state.composerState.videoNoteState) {
+        if (state.composerState.videoNoteState is VideoNoteState.RequestingPermissions) {
+            videoNotePermissionLauncher.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO))
+        }
+    }
 
     var maxComposerHeightPx by remember { mutableIntStateOf(120) }
 
@@ -276,7 +315,7 @@ fun MessagesView(
                         SuggestionsPickerView(
                             modifier = Modifier
                                 .shadow(10.dp)
-                                .background(ElementTheme.colors.bgCanvasDefault)
+                                .background(chatBackgroundColor)
                                 .align(Alignment.BottomStart)
                                 .heightIn(max = 230.dp),
                             roomId = state.roomId,
@@ -287,6 +326,42 @@ fun MessagesView(
                                 state.composerState.eventSink(MessageComposerEvent.InsertSuggestion(it))
                             }
                         )
+
+                        val videoNoteState = state.composerState.videoNoteState
+                        when (videoNoteState) {
+                            is VideoNoteState.Recording -> {
+                                VideoNoteRecorderView(
+                                    modifier = Modifier.fillMaxSize(),
+                                    state = videoNoteState,
+                                    onRecordingCompleted = {
+                                        state.composerState.eventSink(MessageComposerEvent.VideoNoteRecordingCompleted(it))
+                                    },
+                                    onRecordingCancelled = {
+                                        state.composerState.eventSink(MessageComposerEvent.CancelVideoNoteRecording)
+                                    },
+                                    onRecordingFailed = {
+                                        state.composerState.eventSink(MessageComposerEvent.VideoNoteRecordingFailed(it))
+                                    },
+                                    onStopRecording = {
+                                        state.composerState.eventSink(MessageComposerEvent.FinishVideoNoteRecording)
+                                    },
+                                    onCancelRecording = {
+                                        state.composerState.eventSink(MessageComposerEvent.CancelVideoNoteRecording)
+                                    },
+                                )
+                            }
+                            is VideoNoteState.Processing -> {
+                                PendingVideoNoteSkeleton(
+                                    uri = state.composerState.videoNoteState.uri,
+                                    modifier = Modifier
+                                        .align(Alignment.BottomEnd)
+                                        .navigationBarsPadding()
+                                        .imePadding()
+                                        .padding(end = 16.dp, bottom = 88.dp)
+                                )
+                            }
+                            else -> Unit
+                        }
                     }
                 },
                 snackbarHost = {
@@ -398,6 +473,57 @@ fun MessagesView(
 }
 
 @Composable
+private fun PendingVideoNoteSkeleton(uri: Uri, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val bitmap by produceState<Bitmap?>(null, uri) {
+        value = withContext(Dispatchers.IO) {
+            val retriever = MediaMetadataRetriever()
+            try {
+                retriever.setDataSource(context, uri)
+                retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+            } catch (e: Exception) {
+                Timber.e(e, "Failed to extract pending video note frame")
+                null
+            } finally {
+                retriever.release()
+            }
+        }
+    }
+
+    Box(
+        modifier = modifier.size(160.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(CircleShape)
+                .background(Color.Black),
+        ) {
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap!!.asImageBitmap(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.45f)),
+            )
+        }
+        CircularProgressIndicator(
+            modifier = Modifier.size(40.dp),
+            color = Color.White,
+            strokeWidth = 3.dp,
+            trackColor = Color.White.copy(alpha = 0.25f),
+        )
+    }
+}
+
+@Composable
 private fun ReinviteDialog(state: MessagesState) {
     if (state.showReinvitePrompt) {
         ConfirmationDialog(
@@ -435,7 +561,8 @@ private fun MessagesViewContent(
         modifier = modifier
             .fillMaxSize()
             .navigationBarsPadding()
-            .imePadding(),
+            .imePadding()
+            .background(LocalChatBgColor.current ?: ElementTheme.colors.bgCanvasDefault),
     ) {
         AttachmentsBottomSheet(
             state = state.composerState,

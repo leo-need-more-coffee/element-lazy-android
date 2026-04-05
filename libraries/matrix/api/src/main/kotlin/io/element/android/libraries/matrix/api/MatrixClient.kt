@@ -104,6 +104,8 @@ interface MatrixClient {
      */
     suspend fun getUserProfile(): Result<MatrixUser>
     suspend fun getAccountManagementUrl(action: AccountManagementAction?): Result<String?>
+    suspend fun getAccountData(eventType: String): Result<String?>
+    suspend fun setAccountData(eventType: String, content: String): Result<Unit>
     suspend fun uploadMedia(mimeType: String, data: ByteArray): Result<String>
 
     /**

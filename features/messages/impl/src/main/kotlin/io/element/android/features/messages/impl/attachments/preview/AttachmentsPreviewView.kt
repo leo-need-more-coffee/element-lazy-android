@@ -67,6 +67,7 @@ import io.element.android.libraries.mediaviewer.api.local.LocalMediaRenderer
 import io.element.android.libraries.preferences.api.store.VideoCompressionPreset
 import io.element.android.libraries.textcomposer.TextComposer
 import io.element.android.libraries.textcomposer.model.MessageComposerMode
+import io.element.android.libraries.textcomposer.model.MessageComposerRecorderMode
 import io.element.android.libraries.textcomposer.model.VoiceMessageState
 import io.element.android.libraries.ui.strings.CommonStrings
 import io.element.android.libraries.ui.utils.formatter.rememberFileSizeFormatter
@@ -364,6 +365,8 @@ private fun AttachmentsPreviewBottomActions(
         modifier = modifier,
         state = state.textEditorState,
         voiceMessageState = VoiceMessageState.Idle,
+        recorderMode = MessageComposerRecorderMode.Audio,
+        isVideoNoteRecording = false,
         composerMode = MessageComposerMode.Attachment,
         onRequestFocus = {},
         onSendMessage = onSendClick,
@@ -375,12 +378,18 @@ private fun AttachmentsPreviewBottomActions(
         onVoicePlayerEvent = {},
         onSendVoiceMessage = {},
         onDeleteVoiceMessage = {},
+        onToggleRecorderMode = {},
+        onStartVideoRecording = {},
+        onFinishVideoRecording = {},
+        onCancelVideoRecording = {},
+        onLockVideoRecording = {},
         onReceiveSuggestion = {},
         resolveMentionDisplay = { _, _ -> TextDisplay.Plain },
         resolveAtRoomMentionDisplay = { TextDisplay.Plain },
         onError = {},
         onTyping = {},
         onSelectRichContent = {},
+        onOpenStickerPicker = null,
     )
 }
 

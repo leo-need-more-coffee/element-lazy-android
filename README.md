@@ -14,11 +14,95 @@ Compared to the previous-generation [Element Classic](https://github.com/element
 
 [<img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play" height="80">](https://play.google.com/store/apps/details?id=io.element.android.x)[<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="80">](https://f-droid.org/packages/io.element.android.x)
 
+## What's changed in this fork
+
+This fork keeps tracking upstream Element X Android, but adds several user-facing changes focused on chat UX, visual customization, and richer sticker support.
+
+### 1. Reworked attachment menu
+
+The attachment flow was redesigned to make common actions faster and easier to reach from the composer.
+
+- a custom bottom-sheet attachment menu replaces the more limited default layout
+- stickers are available directly from the composer, next to the voice message control
+- the sticker shortcut hides automatically when text input is not empty
+- the attachment action bar was cleaned up for a more even and compact layout
+- media and sticker actions were reorganized to reduce extra taps while composing messages
+
+<table>
+  <tr>
+    <th>Upstream</th>
+    <th>This fork</th>
+  </tr>
+  <tr>
+    <td><img src="./docs/fork-images/photo_1_2026-04-05_19-43-34.jpg" width="280" /></td>
+    <td><img src="./docs/fork-images/photo_2_2026-04-05_19-43-34.jpg" width="280" /></td>
+  </tr>
+</table>
+
+### 2. Theme customization
+
+This fork adds extra hooks for visual customization beyond the upstream theme setup.
+
+- additional theme extension points were introduced in the Compound and design system layers
+- custom theme options can be plugged into the app without rewriting the whole UI stack
+- preferences-related wiring was extended so theme behavior can be evolved further from settings
+- the groundwork is in place for more opinionated branding and fork-specific visual variants
+
+<table>
+  <tr>
+    <th>Upstream</th>
+    <th>This fork</th>
+  </tr>
+  <tr>
+    <td><img src="./docs/fork-images/photo_3_2026-04-05_19-43-34.jpg" width="280" /></td>
+    <td><img src="./docs/fork-images/photo_4_2026-04-05_19-43-34.jpg" width="280" /></td>
+  </tr>
+</table>
+
+### 3. Sticker packs and sticker UX
+
+Sticker support was expanded substantially, both in the picker and in the room timeline.
+
+- sticker packs can be imported directly from archive files
+- imported sticker packs can be removed from inside the picker
+- the sticker picker shows pack previews using the first sticker instead of plain text tabs
+- the active pack name is shown below the pack strip for better context
+- the active pack is visually highlighted
+- the sticker grid was adjusted to show more stickers per row
+- sticker preview loading was reworked to behave better for large packs and animated assets
+- stickers in the timeline were restyled to appear larger and cleaner
+- sticker message bubbles were removed for a more natural sticker presentation
+- transparent PNG stickers render without being filled by an opaque message background
+- very wide stickers are constrained so they do not take over the chat width
+- animated sticker handling was extended with custom rendering and caching paths in this fork
+
+Composer shortcut:
+
+<table>
+  <tr>
+    <th>Upstream</th>
+    <th>This fork</th>
+  </tr>
+  <tr>
+    <td><img src="./docs/fork-images/photo_5_2026-04-05_19-43-34.jpg" width="280" /></td>
+    <td><img src="./docs/fork-images/photo_6_2026-04-05_19-43-34.jpg" width="280" /></td>
+  </tr>
+</table>
+
+Sticker picker:
+
+<img src="./docs/fork-images/photo_7_2026-04-05_19-43-34.jpg" width="280" />
+
+Sticker rendering in timeline:
+
+<img src="./docs/fork-images/photo_8_2026-04-05_19-43-34.jpg" width="280" />
+
 ## Table of contents
 
 <!--- TOC -->
 
 * [Screenshots](#screenshots)
+* [What's changed in this fork](#whats-changed-in-this-fork)
 * [Translations](#translations)
 * [Rust SDK](#rust-sdk)
 * [Status](#status)

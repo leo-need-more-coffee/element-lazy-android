@@ -16,7 +16,7 @@ Compared to the previous-generation [Element Classic](https://github.com/element
 
 ## What's changed in this fork
 
-This fork keeps tracking upstream Element X Android, but adds several user-facing changes focused on chat UX, visual customization, and richer sticker support.
+This fork keeps tracking upstream Element X Android, but adds several user-facing changes focused on chat UX, visual customization, richer sticker support, and video notes.
 
 ### 1. Reworked attachment menu
 
@@ -96,6 +96,24 @@ Sticker picker:
 Sticker rendering in timeline:
 
 <img src="./docs/fork-images/photo_8_2026-04-05_19-43-34.jpg" width="280" />
+
+### 4. Video notes ("circles")
+
+This fork also extends the chat composer and timeline with support for video notes.
+
+- video note recording support was added to the message composer flow
+- dedicated video note state and recorder handling were introduced for the composer
+- timeline playback logic for video notes was added and coordinated separately from regular media playback
+- local media handling for video notes was extended so the UX behaves more like messenger-style short note messages
+- supporting timeline and presenter wiring was added to integrate video notes into the room experience
+
+Video note flow in this fork:
+
+<img src="./docs/fork-images/photo.png" width="280" />
+
+Video note rendering in timeline:
+
+<img src="./docs/fork-images/photo1.png" width="280" />
 
 ## Table of contents
 

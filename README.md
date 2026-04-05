@@ -115,6 +115,15 @@ Video note rendering in timeline:
 
 <img src="./docs/fork-images/photo1.png" width="280" />
 
+### 5. Push notifications
+
+This fork expects a UnifiedPush distributor to be installed on the device if you want to receive push notifications reliably.
+
+- install `ntfy` or another compatible UnifiedPush distributor before expecting push notifications to work
+- without a distributor, background push delivery may not work at all
+- `ntfy` is the simplest option for most users of this fork
+- F-Droid: [ntfy](https://f-droid.org/packages/io.heckel.ntfy/)
+
 ## Table of contents
 
 <!--- TOC -->
